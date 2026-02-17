@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Uploads
+/uploads/*
+!/uploads/.gitkeep
+
+# Environment
+.env
+.env.local
+
+# Drizzle
+/drizzle/meta
+uploads/
