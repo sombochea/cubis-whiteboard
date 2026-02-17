@@ -43,7 +43,6 @@ export function getIO(httpServer: HTTPServer): SocketIOServer {
     });
 
     socket.on("drawing-update", ({ roomId, elements }) => {
-      console.log(`[socket] drawing-update from ${socket.id}, elements: ${elements?.length}, broadcasting to room ${roomId}`);
       socket.to(roomId).emit("drawing-update", { elements });
     });
 

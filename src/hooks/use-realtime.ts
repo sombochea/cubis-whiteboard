@@ -52,7 +52,6 @@ export function useRealtime({
     });
 
     socket.on("drawing-update", (data: { elements: unknown[] }) => {
-      console.log("[realtime] GOT drawing-update from server, elements:", data?.elements?.length);
       drawingCbRef.current?.(data);
     });
 
@@ -87,7 +86,6 @@ export function useRealtime({
         emitTimerRef.current = setTimeout(() => {
           emitTimerRef.current = undefined;
           if (pendingElements.current) {
-            console.log("[realtime] EMITTING drawing-update, elements:", pendingElements.current.length);
             socketRef.current?.emit("drawing-update", {
               roomId,
               elements: pendingElements.current,

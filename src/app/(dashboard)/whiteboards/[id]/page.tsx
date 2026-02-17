@@ -49,6 +49,7 @@ export default async function WhiteboardPage({
       userName={session.user.name}
       userImage={session.user.image}
       isOwner={isOwner}
+      serverUpdatedAt={wb.updatedAt.getTime()}
     />
   );
 }

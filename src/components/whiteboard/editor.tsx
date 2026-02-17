@@ -11,6 +11,7 @@ import {
 import ShareDialog from "./share-dialog";
 import { toast } from "sonner";
 import Link from "next/link";
+import { saveToLocal, loadFromLocal, clearLocal } from "@/lib/local-store";
 import "@excalidraw/excalidraw/index.css";
 
 interface BinaryFileData {
@@ -32,6 +33,7 @@ interface WhiteboardEditorProps {
   userName: string;
   userImage?: string | null;
   isOwner?: boolean;
+  serverUpdatedAt?: number;
 }
 
 export default function WhiteboardEditor({
@@ -42,11 +44,15 @@ export default function WhiteboardEditor({
   userName,
   userImage,
   isOwner = false,
+  serverUpdatedAt = 0,
 }: WhiteboardEditorProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ExcalidrawComp, setExcalidrawComp] = useState<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [excalidrawUtils, setExcalidrawUtils] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [resolvedData, setResolvedData] = useState<any>(initialData);
+  const [dataReady, setDataReady] = useState(false);
   const [title, setTitle] = useState(initialTitle);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
@@ -55,7 +61,6 @@ export default function WhiteboardEditor({
   >([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const excalidrawRef = useRef<any>(null);
-  const saveTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const lastFileKeysRef = useRef<string>("");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -73,6 +78,25 @@ export default function WhiteboardEditor({
       });
     });
   }, []);
+
+  // ── Reconcile local (IndexedDB) vs server state on mount ──
+  useEffect(() => {
+    loadFromLocal(whiteboardId).then((local) => {
+      if (local && local.savedAt > serverUpdatedAt) {
+        // Local is newer — use it and push to server
+        setResolvedData({ elements: local.elements, appState: local.appState, files: local.files });
+        fetch(`/api/whiteboards/${whiteboardId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data: { elements: local.elements, appState: local.appState, files: local.files } }),
+        }).then(() => clearLocal(whiteboardId)).catch(() => {});
+      } else {
+        // Server is newer or no local — clear stale local
+        clearLocal(whiteboardId).catch(() => {});
+      }
+      setDataReady(true);
+    }).catch(() => setDataReady(true));
+  }, [whiteboardId, serverUpdatedAt]);
 
   // ── Realtime ──
   const rt = useRealtime({ roomId: whiteboardId, userId, userName });
@@ -144,23 +168,60 @@ export default function WhiteboardEditor({
     });
   }, [rt, excalidrawUtils, userId]);
 
-  // ── Save to server (debounced) ──
-  const saveToServer = useCallback(
+  // ── Persistence: IndexedDB (immediate) + server (debounced 5s) ──
+  const serverSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pendingSave = useRef<{ elements: unknown[]; appState: unknown; files: Record<string, BinaryFileData> } | null>(null);
+
+  const flushToServer = useCallback(async () => {
+    const data = pendingSave.current;
+    if (!data) return;
+    pendingSave.current = null;
+    try {
+      await fetch(`/api/whiteboards/${whiteboardId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data }),
+      });
+      // Server has latest — clear local cache
+      clearLocal(whiteboardId).catch(() => {});
+    } catch {
+      pendingSave.current = data;
+    }
+  }, [whiteboardId]);
+
+  // Flush on unmount / tab close using sendBeacon (works during unload)
+  useEffect(() => {
+    const onBeforeUnload = () => {
+      const data = pendingSave.current;
+      if (!data) return;
+      pendingSave.current = null;
+      // keepalive: true ensures fetch completes even during page unload
+      fetch(`/api/whiteboards/${whiteboardId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data }),
+        keepalive: true,
+      }).catch(() => {});
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      clearTimeout(serverSaveTimer.current);
+      flushToServer();
+    };
+  }, [flushToServer, whiteboardId]);
+
+  const saveScene = useCallback(
     (elements: unknown[], appState: unknown, files: Record<string, BinaryFileData>) => {
-      clearTimeout(saveTimeout.current);
-      saveTimeout.current = setTimeout(async () => {
-        try {
-          await fetch(`/api/whiteboards/${whiteboardId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ data: { elements, appState, files } }),
-          });
-        } catch {
-          toast.error("Failed to save");
-        }
-      }, 1500);
+      // 1. IndexedDB — immediate, survives crashes
+      saveToLocal(whiteboardId, { elements, appState, files }).catch(() => {});
+
+      // 2. Server — debounced 5s
+      pendingSave.current = { elements, appState, files };
+      clearTimeout(serverSaveTimer.current);
+      serverSaveTimer.current = setTimeout(flushToServer, 5000);
     },
-    [whiteboardId]
+    [whiteboardId, flushToServer]
   );
 
   // ── Excalidraw onChange ──
@@ -178,9 +239,9 @@ export default function WhiteboardEditor({
       }
 
       // Save to DB
-      saveToServer(elements as unknown[], appState, files);
+      saveScene(elements as unknown[], appState, files);
     },
-    [rt, saveToServer]
+    [rt, saveScene]
   );
 
   const handlePointerUpdate = useCallback(
@@ -211,7 +272,7 @@ export default function WhiteboardEditor({
   };
 
   // ── Loading state ──
-  if (!ExcalidrawComp) {
+  if (!ExcalidrawComp || !dataReady) {
     return (
       <div className="flex h-screen w-screen items-center justify-center" style={{ background: "#fafaf8" }}>
         <div className="flex flex-col items-center gap-5">
@@ -267,12 +328,12 @@ export default function WhiteboardEditor({
           excalidrawAPI={(api: any) => { excalidrawRef.current = api; }}
           isCollaborating={true}
           initialData={{
-            elements: (initialData?.elements as any) || [],
+            elements: (resolvedData?.elements as any) || [],
             appState: {
-              ...(initialData?.appState || {}),
+              ...(resolvedData?.appState || {}),
               collaborators: new Map(),
             },
-            files: initialData?.files ? Object.values(initialData.files) : [],
+            files: resolvedData?.files ? Object.values(resolvedData.files) : [],
           }}
           onChange={handleChange}
           onPointerUpdate={handlePointerUpdate}
