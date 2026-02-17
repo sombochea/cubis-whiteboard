@@ -47,73 +47,100 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
+/* ─── Excalidraw-inspired custom theme ─────────────────────────────
+   Warm canvas tones, violet accent, soft edges, airy spacing.
+   ─────────────────────────────────────────────────────────────── */
+
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --radius: 0.75rem;
+
+  /* Canvas-warm whites */
+  --background: #fafaf8;
+  --foreground: #1b1b1f;
+
+  --card: #ffffff;
+  --card-foreground: #1b1b1f;
+
+  --popover: #ffffff;
+  --popover-foreground: #1b1b1f;
+
+  /* Excalidraw violet */
+  --primary: #6965db;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f0effa;
+  --secondary-foreground: #4a47a3;
+
+  --muted: #f3f3f0;
+  --muted-foreground: #8b8b8e;
+
+  --accent: #ecebf9;
+  --accent-foreground: #4a47a3;
+
+  --destructive: #e03131;
+
+  --border: #e8e8e4;
+  --input: #e8e8e4;
+  --ring: #6965db;
+
+  --chart-1: #6965db;
+  --chart-2: #e9896a;
+  --chart-3: #6bc5a0;
+  --chart-4: #f5c542;
+  --chart-5: #5eadd5;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1b1b1f;
+  --sidebar-primary: #6965db;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f0effa;
+  --sidebar-accent-foreground: #4a47a3;
+  --sidebar-border: #e8e8e4;
+  --sidebar-ring: #6965db;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #181820;
+  --foreground: #ededef;
+
+  --card: #1f1f2a;
+  --card-foreground: #ededef;
+
+  --popover: #1f1f2a;
+  --popover-foreground: #ededef;
+
+  --primary: #7c78f2;
+  --primary-foreground: #ffffff;
+
+  --secondary: #2a2a3a;
+  --secondary-foreground: #b4b2f0;
+
+  --muted: #252530;
+  --muted-foreground: #7c7c88;
+
+  --accent: #2a2a3a;
+  --accent-foreground: #b4b2f0;
+
+  --destructive: #f03e3e;
+
+  --border: #2e2e3a;
+  --input: #2e2e3a;
+  --ring: #7c78f2;
+
+  --chart-1: #7c78f2;
+  --chart-2: #f0a080;
+  --chart-3: #7cd8b0;
+  --chart-4: #f5d060;
+  --chart-5: #70bde0;
+
+  --sidebar: #1f1f2a;
+  --sidebar-foreground: #ededef;
+  --sidebar-primary: #7c78f2;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2a2a3a;
+  --sidebar-accent-foreground: #b4b2f0;
+  --sidebar-border: #2e2e3a;
+  --sidebar-ring: #7c78f2;
 }
 
 @layer base {
@@ -125,11 +152,7 @@
   }
 }
 
-/*
- * Excalidraw style isolation — prevent Tailwind's base resets
- * (border, box-sizing, SVG fill, button appearance, etc.)
- * from breaking Excalidraw's internal UI.
- */
+/* ─── Excalidraw style isolation ───────────────────────────────── */
 .excalidraw,
 .excalidraw-container {
   --tw-border-opacity: initial;
@@ -166,10 +189,6 @@
   }
 }
 
-/*
- * Push Excalidraw's own top toolbar down so it doesn't overlap
- * our floating breadcrumb / avatar bar.
- */
 .excalidraw .App-menu_top {
   margin-top: 52px;
 }

@@ -2,9 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRealtime } from "@/hooks/use-realtime";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Tooltip,
   TooltipContent,
@@ -119,15 +116,17 @@ export default function WhiteboardEditor({
 
   if (!Excalidraw) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-white">
-        <div className="animate-pulse text-neutral-400 text-sm">Loading editor...</div>
+      <div className="flex h-screen w-screen items-center justify-center" style={{ background: "var(--background)" }}>
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-10 w-10 rounded-2xl bg-[var(--primary)] opacity-80 animate-pulse" />
+          <span className="text-sm text-[var(--muted-foreground)]">Loading editor…</span>
+        </div>
       </div>
     );
   }
 
-  // Combine current user + room users for avatar display
   const allUsers = [
-    { userId, name: userName, color: "#6366f1", image: userImage, isSelf: true },
+    { userId, name: userName, color: "#6965db", image: userImage, isSelf: true },
     ...roomUsers
       .filter((u) => u.userId !== userId)
       .map((u) => ({ ...u, image: null, isSelf: false })),
@@ -135,7 +134,7 @@ export default function WhiteboardEditor({
 
   return (
     <div className="relative h-screen w-screen overflow-hidden">
-      {/* ── Full-bleed Excalidraw canvas ── */}
+      {/* ── Full-bleed canvas ── */}
       <div className="absolute inset-0">
         <Excalidraw
           ref={excalidrawRef}
@@ -148,21 +147,18 @@ export default function WhiteboardEditor({
           }}
           onChange={handleChange}
           onPointerUpdate={handlePointerUpdate}
-          UIOptions={{
-            canvasActions: { loadScene: false },
-          }}
+          UIOptions={{ canvasActions: { loadScene: false } }}
         />
       </div>
 
-      {/* ── Floating overlay layer (pointer-events pass through) ── */}
+      {/* ── Floating overlay ── */}
       <div className="absolute inset-0 pointer-events-none z-[10]">
-        {/* ── Top bar: breadcrumb left, avatars right ── */}
         <div className="absolute top-3 left-3 right-3 flex items-start justify-between">
           {/* ── Breadcrumb / Title pill ── */}
-          <div className="pointer-events-auto flex items-center gap-1 rounded-lg bg-white/90 backdrop-blur-md border border-neutral-200/60 shadow-sm px-1 py-1">
+          <div className="pointer-events-auto flex items-center gap-0.5 rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg px-1 py-1 shadow-sm">
             <Link
               href="/whiteboards"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -171,10 +167,12 @@ export default function WhiteboardEditor({
               Home
             </Link>
 
-            <div className="w-px h-4 bg-neutral-200" />
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-40">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
 
             {isEditingTitle ? (
-              <Input
+              <input
                 ref={titleInputRef}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -186,48 +184,44 @@ export default function WhiteboardEditor({
                     setIsEditingTitle(false);
                   }
                 }}
-                className="h-7 w-48 border-0 bg-transparent px-2.5 text-xs font-semibold text-neutral-900 shadow-none focus-visible:ring-1 focus-visible:ring-neutral-300"
+                className="h-7 w-44 rounded-lg border border-[var(--primary)]/30 bg-transparent px-2 text-xs font-semibold text-[var(--foreground)] outline-none ring-2 ring-[var(--primary)]/20"
                 autoFocus
               />
             ) : (
               <button
                 onClick={startEditingTitle}
-                className="px-2.5 py-1 rounded-md text-xs font-semibold text-neutral-900 hover:bg-neutral-100 transition-colors truncate max-w-[200px]"
+                className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)] truncate max-w-[180px]"
               >
                 {title}
               </button>
             )}
           </div>
 
-          {/* ── Avatars + Share (top-right) ── */}
-          <div className="pointer-events-auto flex items-center gap-2">
-            {/* Avatar stack */}
+          {/* ── Right: avatars + share ── */}
+          <div className="pointer-events-auto flex items-center gap-2.5">
             <TooltipProvider>
               <div className="flex items-center -space-x-2">
                 {allUsers.map((u, i) => (
                   <Tooltip key={u.userId}>
                     <TooltipTrigger asChild>
                       <div
-                        className="relative rounded-full ring-2 ring-white transition-transform hover:scale-110 hover:z-10"
+                        className="relative rounded-full ring-[2.5px] ring-white transition-transform hover:scale-110 hover:z-10"
                         style={{ zIndex: allUsers.length - i }}
                       >
-                        <Avatar className="h-8 w-8">
-                          {u.image && <AvatarImage src={u.image} alt={u.name} />}
-                          <AvatarFallback
-                            className="text-[11px] font-semibold text-white"
-                            style={{ backgroundColor: u.color }}
-                          >
-                            {u.name.charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        {/* Online indicator */}
-                        <span
-                          className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white"
-                          style={{ backgroundColor: "#22c55e" }}
-                        />
+                        <div
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                          style={{ backgroundColor: u.color }}
+                        >
+                          {u.image ? (
+                            <img src={u.image} alt={u.name} className="h-full w-full rounded-full object-cover" />
+                          ) : (
+                            u.name.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-400" />
                       </div>
                     </TooltipTrigger>
-                    <TooltipContent side="bottom" className="text-xs">
+                    <TooltipContent side="bottom" className="rounded-lg bg-[var(--foreground)] px-2.5 py-1 text-[11px] text-[var(--background)]">
                       {u.isSelf ? `${u.name} (you)` : u.name}
                     </TooltipContent>
                   </Tooltip>
@@ -235,17 +229,14 @@ export default function WhiteboardEditor({
               </div>
             </TooltipProvider>
 
-            {/* Online count badge (when > 1) */}
             {allUsers.length > 1 && (
-              <span className="text-[11px] font-medium text-neutral-500 tabular-nums">
+              <span className="text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">
                 {allUsers.length}
               </span>
             )}
 
-            {/* Separator */}
-            <div className="w-px h-6 bg-neutral-200" />
+            <div className="h-5 w-px bg-[var(--border)]" />
 
-            {/* Share button */}
             {isOwner && (
               <ShareDialog
                 whiteboardId={whiteboardId}
@@ -254,12 +245,11 @@ export default function WhiteboardEditor({
               />
             )}
 
-            {/* User menu */}
             <Link
               href="/whiteboards"
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/90 backdrop-blur-md border border-neutral-200/60 shadow-sm text-neutral-500 hover:text-neutral-900 hover:bg-neutral-50 transition-colors"
+              className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect width="7" height="7" x="3" y="3" rx="1" />
                 <rect width="7" height="7" x="14" y="3" rx="1" />
                 <rect width="7" height="7" x="14" y="14" rx="1" />
