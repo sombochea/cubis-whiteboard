@@ -17,7 +17,8 @@ interface UseRealtimeOptions {
 
 interface RealtimeHandle {
   emitDrawingUpdate: (elements: unknown[]) => void;
-  emitCursorMove: (cursor: { x: number; y: number }) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  emitCursorMove: (cursor: any) => void;
   emitFiles: (files: Record<string, unknown>) => void;
   onDrawingUpdate: (cb: (data: { elements: unknown[] }) => void) => void;
   onFilesUpdate: (cb: (data: { files: Record<string, unknown> }) => void) => void;
@@ -51,6 +52,7 @@ export function useRealtime({
     });
 
     socket.on("drawing-update", (data: { elements: unknown[] }) => {
+      console.log("[realtime] GOT drawing-update from server, elements:", data?.elements?.length);
       drawingCbRef.current?.(data);
     });
 
@@ -85,6 +87,7 @@ export function useRealtime({
         emitTimerRef.current = setTimeout(() => {
           emitTimerRef.current = undefined;
           if (pendingElements.current) {
+            console.log("[realtime] EMITTING drawing-update, elements:", pendingElements.current.length);
             socketRef.current?.emit("drawing-update", {
               roomId,
               elements: pendingElements.current,
@@ -106,7 +109,7 @@ export function useRealtime({
   );
 
   const emitCursorMove = useCallback(
-    (cursor: { x: number; y: number; tool?: string }) => {
+    (cursor: { x: number; y: number; tool?: string; button?: string }) => {
       socketRef.current?.volatile.emit("cursor-move", { roomId, cursor });
     },
     [roomId]

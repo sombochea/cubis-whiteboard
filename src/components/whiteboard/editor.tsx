@@ -13,9 +13,6 @@ import { toast } from "sonner";
 import Link from "next/link";
 import "@excalidraw/excalidraw/index.css";
 
-// Excalidraw collaboration types
-type CaptureUpdateActionType = "IMMEDIATELY" | "NEVER" | "EVENTUALLY";
-
 interface BinaryFileData {
   id: string;
   mimeType: string;
@@ -48,7 +45,8 @@ export default function WhiteboardEditor({
 }: WhiteboardEditorProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ExcalidrawComp, setExcalidrawComp] = useState<any>(null);
-  const [captureNever, setCaptureNever] = useState<CaptureUpdateActionType | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [excalidrawUtils, setExcalidrawUtils] = useState<any>(null);
   const [title, setTitle] = useState(initialTitle);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
@@ -68,8 +66,12 @@ export default function WhiteboardEditor({
   useEffect(() => {
     import("@excalidraw/excalidraw").then((mod) => {
       setExcalidrawComp(() => mod.Excalidraw);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setCaptureNever((mod as any).CaptureUpdateAction?.NEVER ?? null);
+      setExcalidrawUtils({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        reconcileElements: (mod as any).reconcileElements,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        CaptureUpdateAction: (mod as any).CaptureUpdateAction,
+      });
     });
   }, []);
 
@@ -78,14 +80,29 @@ export default function WhiteboardEditor({
 
   // Register realtime callbacks (uses refs internally, no stale closure)
   useEffect(() => {
-    rt.onDrawingUpdate(({ elements }) => {
+    rt.onDrawingUpdate(({ elements: remoteElements }) => {
       const api = excalidrawRef.current;
+      console.log("[editor] drawing-update callback, api:", !!api, "remoteElements:", remoteElements?.length, "hasReconcile:", !!excalidrawUtils?.reconcileElements);
       if (!api) return;
       isRemoteUpdate.current = true;
-      api.updateScene({
-        elements,
-        ...(captureNever ? { captureUpdate: captureNever } : {}),
-      });
+
+      if (excalidrawUtils?.reconcileElements) {
+        // Merge remote elements with local — preserves in-progress local edits
+        const localElements = api.getSceneElements();
+        const appState = api.getAppState();
+        const reconciledElements = excalidrawUtils.reconcileElements(
+          localElements,
+          remoteElements,
+          appState,
+        );
+        api.updateScene({
+          elements: reconciledElements,
+          captureUpdate: excalidrawUtils.CaptureUpdateAction?.NEVER,
+        });
+      } else {
+        api.updateScene({ elements: remoteElements });
+      }
+
       queueMicrotask(() => {
         isRemoteUpdate.current = false;
       });
@@ -106,39 +123,40 @@ export default function WhiteboardEditor({
       if (fileArray.length > 0) api.addFiles(fileArray);
     });
 
-    // Update Excalidraw's collaborators Map when cursor data arrives
+    // Feed cursor positions into Excalidraw's collaborators Map for native cursor rendering
     rt.onCursorMove((data: unknown) => {
       const api = excalidrawRef.current;
       if (!api) return;
-      const d = data as { userId: string; name: string; color: string; x: number; y: number };
-      collaboratorsRef.current.set(d.userId, {
+      const d = data as { userId: string; name: string; color: string; x: number; y: number; button?: string };
+      // Must create a NEW Map — Excalidraw won't re-render if same reference
+      const updated = new Map(collaboratorsRef.current);
+      updated.set(d.userId, {
         username: d.name,
         pointer: { x: d.x, y: d.y, tool: "pointer" as const },
+        button: d.button || "up",
         color: { background: d.color, stroke: d.color },
       });
-      api.updateScene({
-        collaborators: collaboratorsRef.current,
-      });
+      collaboratorsRef.current = updated;
+      api.updateScene({ collaborators: updated });
     });
 
     rt.onRoomUsers((users) => {
       setRoomUsers(users);
-      // Initialize collaborators map for all room users
       const api = excalidrawRef.current;
       if (!api) return;
-      const newMap = new Map<string, { username?: string; color?: { background: string; stroke: string } }>();
+      const updated = new Map<string, { username?: string; color?: { background: string; stroke: string } }>();
       for (const u of users) {
         if (u.userId === userId) continue;
         const existing = collaboratorsRef.current.get(u.userId);
-        newMap.set(u.userId, existing || {
+        updated.set(u.userId, existing || {
           username: u.name,
           color: { background: u.color, stroke: u.color },
         });
       }
-      collaboratorsRef.current = newMap;
-      api.updateScene({ collaborators: newMap });
+      collaboratorsRef.current = updated;
+      api.updateScene({ collaborators: updated });
     });
-  }, [rt, captureNever, userId]);
+  }, [rt, excalidrawUtils, userId]);
 
   // ── Save to server (debounced) ──
   const saveToServer = useCallback(
@@ -182,8 +200,14 @@ export default function WhiteboardEditor({
   );
 
   const handlePointerUpdate = useCallback(
-    ({ pointer }: { pointer: { x: number; y: number; tool: string } }) => {
-      rt.emitCursorMove(pointer);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (payload: any) => {
+      rt.emitCursorMove({
+        x: payload.pointer.x,
+        y: payload.pointer.y,
+        tool: payload.pointer.tool,
+        button: payload.button,
+      });
     },
     [rt]
   );
