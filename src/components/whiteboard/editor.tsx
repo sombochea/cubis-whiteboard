@@ -55,7 +55,6 @@ export default function WhiteboardEditor({
   >([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const excalidrawRef = useRef<any>(null);
-  const isRemoteUpdate = useRef(false);
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const lastFileKeysRef = useRef<string>("");
@@ -82,30 +81,17 @@ export default function WhiteboardEditor({
   useEffect(() => {
     rt.onDrawingUpdate(({ elements: remoteElements }) => {
       const api = excalidrawRef.current;
-      console.log("[editor] drawing-update callback, api:", !!api, "remoteElements:", remoteElements?.length, "hasReconcile:", !!excalidrawUtils?.reconcileElements);
       if (!api) return;
-      isRemoteUpdate.current = true;
-
+      const appState = api.getAppState();
+      // Don't update while user is actively drawing/resizing — it resets their in-progress element
+      if (appState.newElement || appState.resizingElement || appState.draggingElement || appState.editingTextElement) return;
+      const localElements = api.getSceneElements();
       if (excalidrawUtils?.reconcileElements) {
-        // Merge remote elements with local — preserves in-progress local edits
-        const localElements = api.getSceneElements();
-        const appState = api.getAppState();
-        const reconciledElements = excalidrawUtils.reconcileElements(
-          localElements,
-          remoteElements,
-          appState,
-        );
-        api.updateScene({
-          elements: reconciledElements,
-          captureUpdate: excalidrawUtils.CaptureUpdateAction?.NEVER,
-        });
+        const merged = excalidrawUtils.reconcileElements(localElements, remoteElements, appState);
+        api.updateScene({ elements: merged, captureUpdate: excalidrawUtils.CaptureUpdateAction?.NEVER });
       } else {
         api.updateScene({ elements: remoteElements });
       }
-
-      queueMicrotask(() => {
-        isRemoteUpdate.current = false;
-      });
     });
 
     rt.onFilesUpdate(({ files }) => {
@@ -127,12 +113,12 @@ export default function WhiteboardEditor({
     rt.onCursorMove((data: unknown) => {
       const api = excalidrawRef.current;
       if (!api) return;
-      const d = data as { userId: string; name: string; color: string; x: number; y: number; button?: string };
+      const d = data as { userId: string; name: string; color: string; x: number; y: number; button?: string; tool?: string };
       // Must create a NEW Map — Excalidraw won't re-render if same reference
       const updated = new Map(collaboratorsRef.current);
       updated.set(d.userId, {
         username: d.name,
-        pointer: { x: d.x, y: d.y, tool: "pointer" as const },
+        pointer: { x: d.x, y: d.y, tool: (d.tool || "pointer") as "pointer" | "laser" },
         button: d.button || "up",
         color: { background: d.color, stroke: d.color },
       });
@@ -181,8 +167,6 @@ export default function WhiteboardEditor({
   const handleChange = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (elements: readonly any[], appState: any, files: Record<string, BinaryFileData>) => {
-      if (isRemoteUpdate.current) return;
-
       // Emit elements over socket (throttled inside hook)
       rt.emitDrawingUpdate(elements as unknown[]);
 
@@ -280,7 +264,7 @@ export default function WhiteboardEditor({
       {/* ── Full-bleed canvas ── */}
       <div className="absolute inset-0">
         <ExcalidrawComp
-          ref={excalidrawRef}
+          excalidrawAPI={(api: any) => { excalidrawRef.current = api; }}
           isCollaborating={true}
           initialData={{
             elements: (initialData?.elements as any) || [],

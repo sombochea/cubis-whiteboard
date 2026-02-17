@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import { io, Socket } from "socket.io-client";
 
 interface RoomUser {
@@ -144,7 +144,7 @@ export function useRealtime({
     []
   );
 
-  return {
+  return useMemo(() => ({
     emitDrawingUpdate,
     emitCursorMove,
     emitFiles,
@@ -152,5 +152,5 @@ export function useRealtime({
     onFilesUpdate,
     onCursorMove,
     onRoomUsers,
-  };
+  }), [emitDrawingUpdate, emitCursorMove, emitFiles, onDrawingUpdate, onFilesUpdate, onCursorMove, onRoomUsers]);
 }
