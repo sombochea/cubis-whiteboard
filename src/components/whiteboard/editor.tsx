@@ -13,12 +13,14 @@ import { toast } from "sonner";
 import Link from "next/link";
 import "@excalidraw/excalidraw/index.css";
 
+// Excalidraw collaboration types
+type CaptureUpdateActionType = "IMMEDIATELY" | "NEVER" | "EVENTUALLY";
+
 interface BinaryFileData {
   id: string;
   mimeType: string;
   dataURL: string;
   created?: number;
-  lastRetrieved?: number;
 }
 
 interface WhiteboardEditorProps {
@@ -45,7 +47,8 @@ export default function WhiteboardEditor({
   isOwner = false,
 }: WhiteboardEditorProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [Excalidraw, setExcalidraw] = useState<any>(null);
+  const [ExcalidrawComp, setExcalidrawComp] = useState<any>(null);
+  const [captureNever, setCaptureNever] = useState<CaptureUpdateActionType | null>(null);
   const [title, setTitle] = useState(initialTitle);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
@@ -57,13 +60,87 @@ export default function WhiteboardEditor({
   const isRemoteUpdate = useRef(false);
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const lastFileKeysRef = useRef<string>("");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const collaboratorsRef = useRef<Map<string, any>>(new Map());
 
+  // Load Excalidraw
   useEffect(() => {
     import("@excalidraw/excalidraw").then((mod) => {
-      setExcalidraw(() => mod.Excalidraw);
+      setExcalidrawComp(() => mod.Excalidraw);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setCaptureNever((mod as any).CaptureUpdateAction?.NEVER ?? null);
     });
   }, []);
 
+  // ── Realtime ──
+  const rt = useRealtime({ roomId: whiteboardId, userId, userName });
+
+  // Register realtime callbacks (uses refs internally, no stale closure)
+  useEffect(() => {
+    rt.onDrawingUpdate(({ elements }) => {
+      const api = excalidrawRef.current;
+      if (!api) return;
+      isRemoteUpdate.current = true;
+      api.updateScene({
+        elements,
+        ...(captureNever ? { captureUpdate: captureNever } : {}),
+      });
+      queueMicrotask(() => {
+        isRemoteUpdate.current = false;
+      });
+    });
+
+    rt.onFilesUpdate(({ files }) => {
+      const api = excalidrawRef.current;
+      if (!api || !files) return;
+      const fileArray = Object.values(files).map((f: unknown) => {
+        const file = f as BinaryFileData;
+        return {
+          id: file.id,
+          mimeType: file.mimeType,
+          dataURL: file.dataURL,
+          created: file.created || Date.now(),
+        };
+      });
+      if (fileArray.length > 0) api.addFiles(fileArray);
+    });
+
+    // Update Excalidraw's collaborators Map when cursor data arrives
+    rt.onCursorMove((data: unknown) => {
+      const api = excalidrawRef.current;
+      if (!api) return;
+      const d = data as { userId: string; name: string; color: string; x: number; y: number };
+      collaboratorsRef.current.set(d.userId, {
+        username: d.name,
+        pointer: { x: d.x, y: d.y, tool: "pointer" as const },
+        color: { background: d.color, stroke: d.color },
+      });
+      api.updateScene({
+        collaborators: collaboratorsRef.current,
+      });
+    });
+
+    rt.onRoomUsers((users) => {
+      setRoomUsers(users);
+      // Initialize collaborators map for all room users
+      const api = excalidrawRef.current;
+      if (!api) return;
+      const newMap = new Map<string, { username?: string; color?: { background: string; stroke: string } }>();
+      for (const u of users) {
+        if (u.userId === userId) continue;
+        const existing = collaboratorsRef.current.get(u.userId);
+        newMap.set(u.userId, existing || {
+          username: u.name,
+          color: { background: u.color, stroke: u.color },
+        });
+      }
+      collaboratorsRef.current = newMap;
+      api.updateScene({ collaborators: newMap });
+    });
+  }, [rt, captureNever, userId]);
+
+  // ── Save to server (debounced) ──
   const saveToServer = useCallback(
     (elements: unknown[], appState: unknown, files: Record<string, BinaryFileData>) => {
       clearTimeout(saveTimeout.current);
@@ -77,54 +154,38 @@ export default function WhiteboardEditor({
         } catch {
           toast.error("Failed to save");
         }
-      }, 1000);
+      }, 1500);
     },
     [whiteboardId]
   );
 
-  const { emitDrawingUpdate, emitCursorMove } = useRealtime({
-    roomId: whiteboardId,
-    userId,
-    userName,
-    onDrawingUpdate: ({ elements, files }) => {
-      if (excalidrawRef.current) {
-        isRemoteUpdate.current = true;
-        excalidrawRef.current.updateScene({ elements });
-        // Add any new files from remote collaborators
-        if (files && Object.keys(files).length > 0) {
-          excalidrawRef.current.addFiles(
-            Object.values(files).map((f: unknown) => {
-              const file = f as BinaryFileData;
-              return {
-                id: file.id,
-                mimeType: file.mimeType,
-                dataURL: file.dataURL,
-                created: file.created || Date.now(),
-              };
-            })
-          );
-        }
-        isRemoteUpdate.current = false;
-      }
-    },
-    onRoomUsers: setRoomUsers,
-  });
-
+  // ── Excalidraw onChange ──
   const handleChange = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (elements: readonly any[], appState: any, files: Record<string, BinaryFileData>) => {
       if (isRemoteUpdate.current) return;
-      emitDrawingUpdate(elements as unknown[], appState, files);
+
+      // Emit elements over socket (throttled inside hook)
+      rt.emitDrawingUpdate(elements as unknown[]);
+
+      // Only emit files when new ones are added
+      const fileKeys = Object.keys(files || {}).sort().join(",");
+      if (fileKeys !== lastFileKeysRef.current) {
+        lastFileKeysRef.current = fileKeys;
+        rt.emitFiles(files || {});
+      }
+
+      // Save to DB
       saveToServer(elements as unknown[], appState, files);
     },
-    [emitDrawingUpdate, saveToServer]
+    [rt, saveToServer]
   );
 
   const handlePointerUpdate = useCallback(
-    ({ pointer }: { pointer: { x: number; y: number } }) => {
-      emitCursorMove(pointer);
+    ({ pointer }: { pointer: { x: number; y: number; tool: string } }) => {
+      rt.emitCursorMove(pointer);
     },
-    [emitCursorMove]
+    [rt]
   );
 
   const handleTitleSave = async () => {
@@ -141,13 +202,44 @@ export default function WhiteboardEditor({
     setTimeout(() => titleInputRef.current?.select(), 0);
   };
 
-  if (!Excalidraw) {
+  // ── Loading state ──
+  if (!ExcalidrawComp) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center" style={{ background: "var(--background)" }}>
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 rounded-2xl bg-[var(--primary)] opacity-80 animate-pulse" />
-          <span className="text-sm text-[var(--muted-foreground)]">Loading editor…</span>
+      <div className="flex h-screen w-screen items-center justify-center" style={{ background: "#fafaf8" }}>
+        <div className="flex flex-col items-center gap-5">
+          {/* Animated logo */}
+          <div className="relative">
+            <div className="h-14 w-14 rounded-2xl bg-[#6965db] flex items-center justify-center shadow-lg shadow-[#6965db]/20">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-[draw_2s_ease-in-out_infinite]">
+                <path d="M12 19l7-7 3 3-7 7-3-3z" />
+                <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+                <path d="M2 2l7.586 7.586" />
+                <circle cx="11" cy="11" r="2" />
+              </svg>
+            </div>
+            {/* Pulse ring */}
+            <div className="absolute inset-0 rounded-2xl border-2 border-[#6965db]/30 animate-ping" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-medium text-[#1b1b1f]">Preparing your canvas</p>
+            <p className="mt-1 text-xs text-[#8b8b8e]">Loading drawing tools…</p>
+          </div>
+          {/* Progress bar */}
+          <div className="h-1 w-48 overflow-hidden rounded-full bg-[#e8e8e4]">
+            <div className="h-full w-1/2 rounded-full bg-[#6965db] animate-[shimmer_1.5s_ease-in-out_infinite]" />
+          </div>
         </div>
+
+        <style>{`
+          @keyframes draw {
+            0%, 100% { opacity: 1; transform: rotate(0deg); }
+            50% { opacity: 0.6; transform: rotate(3deg); }
+          }
+          @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(300%); }
+          }
+        `}</style>
       </div>
     );
   }
@@ -163,17 +255,16 @@ export default function WhiteboardEditor({
     <div className="relative h-screen w-screen overflow-hidden">
       {/* ── Full-bleed canvas ── */}
       <div className="absolute inset-0">
-        <Excalidraw
+        <ExcalidrawComp
           ref={excalidrawRef}
+          isCollaborating={true}
           initialData={{
             elements: (initialData?.elements as any) || [],
             appState: {
               ...(initialData?.appState || {}),
               collaborators: new Map(),
             },
-            files: initialData?.files
-              ? Object.values(initialData.files)
-              : [],
+            files: initialData?.files ? Object.values(initialData.files) : [],
           }}
           onChange={handleChange}
           onPointerUpdate={handlePointerUpdate}

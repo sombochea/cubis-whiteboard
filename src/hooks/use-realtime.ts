@@ -3,59 +3,151 @@
 import { useEffect, useRef, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 
+interface RoomUser {
+  userId: string;
+  name: string;
+  color: string;
+}
+
 interface UseRealtimeOptions {
   roomId: string;
   userId: string;
   userName: string;
-  onDrawingUpdate?: (data: { elements: unknown[]; appState: unknown; files: Record<string, unknown> }) => void;
-  onCursorMove?: (data: unknown) => void;
-  onRoomUsers?: (users: { userId: string; name: string; color: string }[]) => void;
+}
+
+interface RealtimeHandle {
+  emitDrawingUpdate: (elements: unknown[]) => void;
+  emitCursorMove: (cursor: { x: number; y: number }) => void;
+  emitFiles: (files: Record<string, unknown>) => void;
+  onDrawingUpdate: (cb: (data: { elements: unknown[] }) => void) => void;
+  onFilesUpdate: (cb: (data: { files: Record<string, unknown> }) => void) => void;
+  onCursorMove: (cb: (data: unknown) => void) => void;
+  onRoomUsers: (cb: (users: RoomUser[]) => void) => void;
 }
 
 export function useRealtime({
   roomId,
   userId,
   userName,
-  onDrawingUpdate,
-  onCursorMove,
-  onRoomUsers,
-}: UseRealtimeOptions) {
+}: UseRealtimeOptions): RealtimeHandle {
   const socketRef = useRef<Socket | null>(null);
+  const drawingCbRef = useRef<((data: { elements: unknown[] }) => void) | null>(null);
+  const filesCbRef = useRef<((data: { files: Record<string, unknown> }) => void) | null>(null);
+  const cursorCbRef = useRef<((data: unknown) => void) | null>(null);
+  const usersCbRef = useRef<((users: RoomUser[]) => void) | null>(null);
+  const emitTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pendingElements = useRef<unknown[] | null>(null);
 
   useEffect(() => {
     const socket = io({
       path: "/api/socketio",
-      transports: ["websocket", "polling"],
+      transports: ["polling", "websocket"],
     });
     socketRef.current = socket;
 
     socket.on("connect", () => {
+      console.log("[realtime] connected, joining room", roomId);
       socket.emit("join-room", { roomId, userId, name: userName });
     });
 
-    if (onDrawingUpdate) socket.on("drawing-update", onDrawingUpdate);
-    if (onCursorMove) socket.on("cursor-move", onCursorMove);
-    if (onRoomUsers) socket.on("room-users", onRoomUsers);
+    socket.on("drawing-update", (data: { elements: unknown[] }) => {
+      drawingCbRef.current?.(data);
+    });
+
+    socket.on("files-update", (data: { files: Record<string, unknown> }) => {
+      filesCbRef.current?.(data);
+    });
+
+    socket.on("cursor-move", (data: unknown) => {
+      cursorCbRef.current?.(data);
+    });
+
+    socket.on("room-users", (users: RoomUser[]) => {
+      usersCbRef.current?.(users);
+    });
+
+    socket.on("connect_error", (err) => {
+      console.error("[realtime] connection error:", err.message);
+    });
 
     return () => {
       socket.disconnect();
+      socketRef.current = null;
+      clearTimeout(emitTimerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, userId, userName]);
 
+  // Throttled element emit — max once per 100ms
   const emitDrawingUpdate = useCallback(
-    (elements: unknown[], appState: unknown, files?: Record<string, unknown>) => {
-      socketRef.current?.emit("drawing-update", { roomId, elements, appState, files: files || {} });
+    (elements: unknown[]) => {
+      pendingElements.current = elements;
+      if (!emitTimerRef.current) {
+        emitTimerRef.current = setTimeout(() => {
+          emitTimerRef.current = undefined;
+          if (pendingElements.current) {
+            socketRef.current?.emit("drawing-update", {
+              roomId,
+              elements: pendingElements.current,
+            });
+            pendingElements.current = null;
+          }
+        }, 100);
+      }
+    },
+    [roomId]
+  );
+
+  // Files sent separately and infrequently
+  const emitFiles = useCallback(
+    (files: Record<string, unknown>) => {
+      socketRef.current?.emit("files-update", { roomId, files });
     },
     [roomId]
   );
 
   const emitCursorMove = useCallback(
-    (cursor: { x: number; y: number }) => {
-      socketRef.current?.emit("cursor-move", { roomId, cursor });
+    (cursor: { x: number; y: number; tool?: string }) => {
+      socketRef.current?.volatile.emit("cursor-move", { roomId, cursor });
     },
     [roomId]
   );
 
-  return { emitDrawingUpdate, emitCursorMove };
+  // Register callbacks via refs to avoid stale closures
+  const onDrawingUpdate = useCallback(
+    (cb: (data: { elements: unknown[] }) => void) => {
+      drawingCbRef.current = cb;
+    },
+    []
+  );
+
+  const onFilesUpdate = useCallback(
+    (cb: (data: { files: Record<string, unknown> }) => void) => {
+      filesCbRef.current = cb;
+    },
+    []
+  );
+
+  const onCursorMove = useCallback(
+    (cb: (data: unknown) => void) => {
+      cursorCbRef.current = cb;
+    },
+    []
+  );
+
+  const onRoomUsers = useCallback(
+    (cb: (users: RoomUser[]) => void) => {
+      usersCbRef.current = cb;
+    },
+    []
+  );
+
+  return {
+    emitDrawingUpdate,
+    emitCursorMove,
+    emitFiles,
+    onDrawingUpdate,
+    onFilesUpdate,
+    onCursorMove,
+    onRoomUsers,
+  };
 }
