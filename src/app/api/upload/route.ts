@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth/session";
-import { uploadFile } from "@/lib/storage";
+import { getSession } from "@/lib/auth/session";
+import { uploadFile, getFileUrl } from "@/lib/storage";
 import { db } from "@/lib/db";
 import { file } from "@/lib/db/schema";
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 
 export async function POST(req: NextRequest) {
-  const session = await requireSession();
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const formData = await req.formData();
   const uploaded = formData.get("file") as File | null;
   const whiteboardId = formData.get("whiteboardId") as string | null;
@@ -21,6 +25,7 @@ export async function POST(req: NextRequest) {
 
   const buffer = Buffer.from(await uploaded.arrayBuffer());
   const result = await uploadFile(buffer, uploaded.name, uploaded.type);
+  const url = await getFileUrl(result.key, result.provider);
 
   const [record] = await db
     .insert(file)
@@ -35,5 +40,5 @@ export async function POST(req: NextRequest) {
     })
     .returning();
 
-  return NextResponse.json(record, { status: 201 });
+  return NextResponse.json({ ...record, url }, { status: 201 });
 }

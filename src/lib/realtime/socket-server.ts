@@ -37,8 +37,8 @@ export function getIO(httpServer?: HTTPServer): SocketIOServer {
       io!.to(roomId).emit("room-users", Array.from(users.values()));
     });
 
-    socket.on("drawing-update", ({ roomId, elements, appState }) => {
-      socket.to(roomId).emit("drawing-update", { elements, appState });
+    socket.on("drawing-update", ({ roomId, elements, appState, files }) => {
+      socket.to(roomId).emit("drawing-update", { elements, appState, files });
     });
 
     socket.on("cursor-move", ({ roomId, cursor }) => {

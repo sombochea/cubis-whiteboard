@@ -8,7 +8,15 @@ const handle = app.getRequestHandler();
 
 app.prepare().then(() => {
   const httpServer = createServer((req, res) => handle(req, res));
-  getIO(httpServer);
+  const io = getIO(httpServer);
+
+  // Socket.IO must handle WebSocket upgrades BEFORE Next.js consumes them
+  httpServer.on("upgrade", (req, socket, head) => {
+    if (req.url?.startsWith("/api/socketio")) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      io.engine.handleUpgrade(req as any, socket, head);
+    }
+  });
 
   const port = parseInt(process.env.PORT || "3000", 10);
   httpServer.listen(port, () => {

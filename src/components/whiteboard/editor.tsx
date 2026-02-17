@@ -13,9 +13,21 @@ import { toast } from "sonner";
 import Link from "next/link";
 import "@excalidraw/excalidraw/index.css";
 
+interface BinaryFileData {
+  id: string;
+  mimeType: string;
+  dataURL: string;
+  created?: number;
+  lastRetrieved?: number;
+}
+
 interface WhiteboardEditorProps {
   whiteboardId: string;
-  initialData?: { elements?: unknown[]; appState?: Record<string, unknown> };
+  initialData?: {
+    elements?: unknown[];
+    appState?: Record<string, unknown>;
+    files?: Record<string, BinaryFileData>;
+  };
   initialTitle?: string;
   userId: string;
   userName: string;
@@ -53,14 +65,14 @@ export default function WhiteboardEditor({
   }, []);
 
   const saveToServer = useCallback(
-    (elements: unknown[], appState: unknown) => {
+    (elements: unknown[], appState: unknown, files: Record<string, BinaryFileData>) => {
       clearTimeout(saveTimeout.current);
       saveTimeout.current = setTimeout(async () => {
         try {
           await fetch(`/api/whiteboards/${whiteboardId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ data: { elements, appState } }),
+            body: JSON.stringify({ data: { elements, appState, files } }),
           });
         } catch {
           toast.error("Failed to save");
@@ -74,10 +86,24 @@ export default function WhiteboardEditor({
     roomId: whiteboardId,
     userId,
     userName,
-    onDrawingUpdate: ({ elements }) => {
+    onDrawingUpdate: ({ elements, files }) => {
       if (excalidrawRef.current) {
         isRemoteUpdate.current = true;
         excalidrawRef.current.updateScene({ elements });
+        // Add any new files from remote collaborators
+        if (files && Object.keys(files).length > 0) {
+          excalidrawRef.current.addFiles(
+            Object.values(files).map((f: unknown) => {
+              const file = f as BinaryFileData;
+              return {
+                id: file.id,
+                mimeType: file.mimeType,
+                dataURL: file.dataURL,
+                created: file.created || Date.now(),
+              };
+            })
+          );
+        }
         isRemoteUpdate.current = false;
       }
     },
@@ -85,10 +111,11 @@ export default function WhiteboardEditor({
   });
 
   const handleChange = useCallback(
-    (elements: unknown[], appState: unknown) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (elements: readonly any[], appState: any, files: Record<string, BinaryFileData>) => {
       if (isRemoteUpdate.current) return;
-      emitDrawingUpdate(elements, appState);
-      saveToServer(elements, appState);
+      emitDrawingUpdate(elements as unknown[], appState, files);
+      saveToServer(elements as unknown[], appState, files);
     },
     [emitDrawingUpdate, saveToServer]
   );
@@ -144,9 +171,15 @@ export default function WhiteboardEditor({
               ...(initialData?.appState || {}),
               collaborators: new Map(),
             },
+            files: initialData?.files
+              ? Object.values(initialData.files)
+              : [],
           }}
           onChange={handleChange}
           onPointerUpdate={handlePointerUpdate}
+          generateIdForFile={(file: File) =>
+            `${whiteboardId}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`
+          }
           UIOptions={{ canvasActions: { loadScene: false } }}
         />
       </div>

@@ -7,7 +7,7 @@ interface UseRealtimeOptions {
   roomId: string;
   userId: string;
   userName: string;
-  onDrawingUpdate?: (data: { elements: unknown[]; appState: unknown }) => void;
+  onDrawingUpdate?: (data: { elements: unknown[]; appState: unknown; files: Record<string, unknown> }) => void;
   onCursorMove?: (data: unknown) => void;
   onRoomUsers?: (users: { userId: string; name: string; color: string }[]) => void;
 }
@@ -23,7 +23,7 @@ export function useRealtime({
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    const socket = io(process.env.NEXT_PUBLIC_APP_URL!, {
+    const socket = io({
       path: "/api/socketio",
       transports: ["websocket", "polling"],
     });
@@ -40,11 +40,12 @@ export function useRealtime({
     return () => {
       socket.disconnect();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, userId, userName]);
 
   const emitDrawingUpdate = useCallback(
-    (elements: unknown[], appState: unknown) => {
-      socketRef.current?.emit("drawing-update", { roomId, elements, appState });
+    (elements: unknown[], appState: unknown, files?: Record<string, unknown>) => {
+      socketRef.current?.emit("drawing-update", { roomId, elements, appState, files: files || {} });
     },
     [roomId]
   );

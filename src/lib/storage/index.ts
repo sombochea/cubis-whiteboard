@@ -19,12 +19,24 @@ const getS3Client = () =>
     },
   });
 
+function localPath(key: string): string {
+  const uploadDir = path.resolve(process.env.LOCAL_UPLOAD_DIR || "./uploads");
+  const resolved = path.resolve(uploadDir, key);
+  // Prevent path traversal
+  if (!resolved.startsWith(uploadDir)) {
+    throw new Error("Invalid storage key");
+  }
+  return resolved;
+}
+
 export async function uploadFile(
   buffer: Buffer,
   filename: string,
   mimeType: string
 ): Promise<StorageResult> {
-  const key = `${nanoid()}/${filename}`;
+  // Sanitize filename: strip path separators, keep only basename
+  const safeName = path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, "_");
+  const key = `${nanoid()}/${safeName}`;
   const provider = (process.env.STORAGE_PROVIDER || "local") as "local" | "s3";
 
   if (provider === "s3") {
@@ -38,9 +50,9 @@ export async function uploadFile(
       })
     );
   } else {
-    const dir = path.join(process.env.LOCAL_UPLOAD_DIR || "./uploads", path.dirname(key));
-    await mkdir(dir, { recursive: true });
-    await writeFile(path.join(process.env.LOCAL_UPLOAD_DIR || "./uploads", key), buffer);
+    const filePath = localPath(key);
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, buffer);
   }
 
   return { key, provider };
@@ -55,7 +67,8 @@ export async function getFileUrl(key: string, provider: "local" | "s3"): Promise
       { expiresIn: 3600 }
     );
   }
-  return `/api/upload/${encodeURIComponent(key)}`;
+  // Key is like "abc123/file.png" — catch-all route handles the slash
+  return `/api/upload/${key}`;
 }
 
 export async function getFileBuffer(key: string, provider: "local" | "s3"): Promise<Buffer> {
@@ -66,7 +79,7 @@ export async function getFileBuffer(key: string, provider: "local" | "s3"): Prom
     );
     return Buffer.from(await res.Body!.transformToByteArray());
   }
-  return readFile(path.join(process.env.LOCAL_UPLOAD_DIR || "./uploads", key));
+  return readFile(localPath(key));
 }
 
 export async function deleteFile(key: string, provider: "local" | "s3") {
@@ -76,6 +89,6 @@ export async function deleteFile(key: string, provider: "local" | "s3") {
       new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET!, Key: key })
     );
   } else {
-    await unlink(path.join(process.env.LOCAL_UPLOAD_DIR || "./uploads", key)).catch(() => {});
+    await unlink(localPath(key)).catch(() => {});
   }
 }
