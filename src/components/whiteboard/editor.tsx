@@ -213,18 +213,19 @@ export default function WhiteboardEditor({
     let thumbnail: string | undefined;
     try {
       const { exportToBlob } = await import("@excalidraw/excalidraw");
-      const api = excalidrawRef.current;
-      if (api && (data.elements as unknown[]).length > 0) {
+      const elems = (data.elements as any[]).filter((e: any) => !e.isDeleted);
+      if (elems.length > 0) {
         const blob = await exportToBlob({
-          elements: api.getSceneElements(),
-          appState: { ...api.getAppState(), exportBackground: true },
-          files: api.getFiles(),
+          elements: elems,
+          appState: { exportBackground: true, viewBackgroundColor: "#ffffff" },
+          files: data.files as any,
           maxWidthOrHeight: 320,
-          quality: 0.5,
-          mimeType: "image/webp",
         });
-        const buf = await blob.arrayBuffer();
-        thumbnail = `data:image/webp;base64,${btoa(String.fromCharCode(...new Uint8Array(buf)))}`;
+        thumbnail = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
       }
     } catch { /* thumbnail is optional */ }
 

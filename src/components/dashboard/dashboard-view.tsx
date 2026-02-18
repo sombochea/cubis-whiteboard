@@ -9,9 +9,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import Link from "next/link";
 import { signOut } from "@/lib/auth/client";
+import { gravatarUrl } from "@/lib/gravatar";
 
 // macOS / Google Drive–style tag colors
 const TAG_COLORS = [
@@ -58,7 +69,10 @@ export default function DashboardView({ userId, userName, userEmail, userImage }
   const [newColName, setNewColName] = useState("");
   const [newColColor, setNewColColor] = useState(TAG_COLORS[4].value);
   const [isPending, startTransition] = useTransition();
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [signOutOpen, setSignOutOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const avatarSrc = userImage || gravatarUrl(userEmail, 64);
 
   const fetchData = useCallback(async (q = "") => {
     abortRef.current?.abort();
@@ -96,10 +110,10 @@ export default function DashboardView({ userId, userName, userEmail, userImage }
     }
   };
 
-  const deleteWhiteboard = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const deleteWhiteboard = async (id: string) => {
     await fetch(`/api/whiteboards/${id}`, { method: "DELETE" });
     setWhiteboards((prev) => prev.filter((w) => w.id !== id));
+    setDeleteTarget(null);
     toast.success("Deleted");
   };
 
@@ -149,7 +163,6 @@ export default function DashboardView({ userId, userName, userEmail, userImage }
     return new Date(date).toLocaleDateString();
   };
 
-  const initials = userName?.charAt(0)?.toUpperCase() || "?";
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
@@ -181,8 +194,8 @@ export default function DashboardView({ userId, userName, userEmail, userImage }
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--muted)]">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-white">
-                  {userImage ? <img src={userImage} alt={userName} className="h-full w-full rounded-full object-cover" /> : initials}
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-white overflow-hidden">
+                  <img src={avatarSrc} alt={userName} className="h-full w-full rounded-full object-cover" />
                 </div>
                 <div className="hidden md:block text-left">
                   <p className="text-[13px] font-medium leading-tight text-[var(--foreground)]">{userName}</p>
@@ -194,7 +207,7 @@ export default function DashboardView({ userId, userName, userEmail, userImage }
             <DropdownMenuContent align="end" className="w-48 rounded-xl border-[var(--border)] bg-[var(--card)] shadow-lg">
               <DropdownMenuItem asChild className="rounded-lg text-[13px]"><Link href="/profile">Profile</Link></DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut} className="rounded-lg text-[13px] text-[var(--destructive)] focus:text-[var(--destructive)]">Sign out</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSignOutOpen(true)} className="rounded-lg text-[13px] text-[var(--destructive)] focus:text-[var(--destructive)]">Sign out</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -343,7 +356,7 @@ export default function DashboardView({ userId, userName, userEmail, userImage }
                     </div>
                     {wb.role === "owner" && (
                       <button
-                        onClick={(e) => deleteWhiteboard(wb.id, e)}
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(wb.id); }}
                         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[var(--muted-foreground)] opacity-0 transition-all hover:bg-[var(--destructive)]/10 hover:text-[var(--destructive)] group-hover:opacity-100"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -370,6 +383,34 @@ export default function DashboardView({ userId, userName, userEmail, userImage }
           )}
         </section>
       </main>
+
+      {/* Delete confirm */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete board?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete this whiteboard and all its data. This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteTarget && deleteWhiteboard(deleteTarget)}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Sign out confirm */}
+      <AlertDialog open={signOutOpen} onOpenChange={setSignOutOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign out?</AlertDialogTitle>
+            <AlertDialogDescription>You'll need to sign in again to access your boards.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSignOut}>Sign out</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
