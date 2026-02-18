@@ -92,6 +92,7 @@ export const collection = pgTable(
     id: id(),
     name: text("name").notNull(),
     description: text("description"),
+    color: text("color").notNull().default("#808080"),
     ownerId: text("owner_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),

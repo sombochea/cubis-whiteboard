@@ -200,7 +200,6 @@ export default function WhiteboardEditor({
     if (!data) return;
 
     if (!navigator.onLine) {
-      // Offline: queue for later
       await enqueueSave(whiteboardId, data).catch(() => {});
       pendingSave.current = null;
       setSyncStatus("offline");
@@ -209,16 +208,35 @@ export default function WhiteboardEditor({
 
     pendingSave.current = null;
     setSyncStatus("saving");
+
+    // Generate thumbnail
+    let thumbnail: string | undefined;
+    try {
+      const { exportToBlob } = await import("@excalidraw/excalidraw");
+      const api = excalidrawRef.current;
+      if (api && (data.elements as unknown[]).length > 0) {
+        const blob = await exportToBlob({
+          elements: api.getSceneElements(),
+          appState: { ...api.getAppState(), exportBackground: true },
+          files: api.getFiles(),
+          maxWidthOrHeight: 320,
+          quality: 0.5,
+          mimeType: "image/webp",
+        });
+        const buf = await blob.arrayBuffer();
+        thumbnail = `data:image/webp;base64,${btoa(String.fromCharCode(...new Uint8Array(buf)))}`;
+      }
+    } catch { /* thumbnail is optional */ }
+
     try {
       await fetch(`/api/whiteboards/${whiteboardId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data }),
+        body: JSON.stringify({ data, ...(thumbnail && { thumbnail }) }),
       });
       clearLocal(whiteboardId).catch(() => {});
       setSyncStatus("synced");
     } catch {
-      // Network failed mid-request — enqueue
       await enqueueSave(whiteboardId, data).catch(() => {});
       setSyncStatus("offline");
     }

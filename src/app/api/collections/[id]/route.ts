@@ -17,6 +17,7 @@ export async function PATCH(
     .set({
       ...(body.name !== undefined && { name: body.name }),
       ...(body.description !== undefined && { description: body.description }),
+      ...(body.color !== undefined && { color: body.color }),
     })
     .where(and(eq(collection.id, id), eq(collection.ownerId, session.user.id)))
     .returning();

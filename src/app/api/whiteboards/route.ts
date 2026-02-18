@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { whiteboard } from "@/lib/db/schema";
+import { whiteboard, collaborator, collectionWhiteboard, collection } from "@/lib/db/schema";
 import { requireSession } from "@/lib/auth/session";
-import { eq, and, ilike, or, desc } from "drizzle-orm";
-import { collaborator } from "@/lib/db/schema";
+import { eq, and, ilike } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   const session = await requireSession();
@@ -30,11 +29,29 @@ export async function GET(req: NextRequest) {
       )
     );
 
-  const [ownedResults, sharedResults] = await Promise.all([owned, shared]);
+  // Collection tags for all boards the user can see
+  const colTags = db
+    .select({
+      whiteboardId: collectionWhiteboard.whiteboardId,
+      colName: collection.name,
+      colColor: collection.color,
+    })
+    .from(collectionWhiteboard)
+    .innerJoin(collection, eq(collectionWhiteboard.collectionId, collection.id))
+    .where(eq(collection.ownerId, session.user.id));
+
+  const [ownedResults, sharedResults, tagResults] = await Promise.all([owned, shared, colTags]);
+
+  // Build a map: whiteboardId -> [{name, color}]
+  const tagMap = new Map<string, { name: string; color: string }[]>();
+  for (const t of tagResults) {
+    if (!tagMap.has(t.whiteboardId)) tagMap.set(t.whiteboardId, []);
+    tagMap.get(t.whiteboardId)!.push({ name: t.colName, color: t.colColor });
+  }
 
   const all = [
-    ...ownedResults.map((w) => ({ ...w, role: "owner" as const })),
-    ...sharedResults.map((r) => ({ ...r.whiteboard, role: "collaborator" as const })),
+    ...ownedResults.map((w) => ({ ...w, role: "owner" as const, collections: tagMap.get(w.id) || [] })),
+    ...sharedResults.map((r) => ({ ...r.whiteboard, role: "collaborator" as const, collections: tagMap.get(r.whiteboard.id) || [] })),
   ].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 
   return NextResponse.json(all);

@@ -16,11 +16,11 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await requireSession();
-  const { name, description } = await req.json();
+  const { name, description, color } = await req.json();
 
   const [created] = await db
     .insert(collection)
-    .values({ name, description, ownerId: session.user.id })
+    .values({ name, description, color: color || "#808080", ownerId: session.user.id })
     .returning();
 
   return NextResponse.json(created, { status: 201 });
