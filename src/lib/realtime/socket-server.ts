@@ -21,7 +21,6 @@ export function getIO(httpServer: HTTPServer): SocketIOServer {
     addTrailingSlash: false,
     cors: { origin: "*", methods: ["GET", "POST"] },
     maxHttpBufferSize: 5e6,
-    // Use polling first, then upgrade — more reliable
     transports: ["polling", "websocket"],
   });
 
@@ -39,7 +38,22 @@ export function getIO(httpServer: HTTPServer): SocketIOServer {
       users.set(socket.id, { userId, name, color });
 
       io!.to(roomId).emit("room-users", Array.from(users.values()));
+
+      // Notify existing peers so they can initiate WebRTC offers
+      socket.to(roomId).emit("peer-joined", { socketId: socket.id, userId, name });
+      // Tell the new peer about everyone already in the room
+      for (const [sid, u] of users) {
+        if (sid !== socket.id) {
+          socket.emit("peer-joined", { socketId: sid, userId: u.userId, name: u.name });
+        }
+      }
+
       console.log(`[socket] ${name} joined ${roomId} (${users.size} users)`);
+    });
+
+    // ── WebRTC signaling ──
+    socket.on("rtc-signal", ({ to, signal }) => {
+      io!.to(to).emit("rtc-signal", { from: socket.id, signal });
     });
 
     socket.on("drawing-update", ({ roomId, elements }) => {
@@ -74,6 +88,8 @@ export function getIO(httpServer: HTTPServer): SocketIOServer {
             roomUsers.delete(currentRoom);
           } else {
             io!.to(currentRoom).emit("room-users", Array.from(users.values()));
+            // Let peers clean up their RTCPeerConnection
+            io!.to(currentRoom).emit("peer-left", { socketId: socket.id });
           }
         }
       }
