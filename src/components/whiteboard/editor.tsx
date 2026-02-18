@@ -34,6 +34,7 @@ interface WhiteboardEditorProps {
   userName: string;
   userImage?: string | null;
   isOwner?: boolean;
+  isPublicInitial?: boolean;
   serverUpdatedAt?: number;
 }
 
@@ -45,6 +46,7 @@ export default function WhiteboardEditor({
   userName,
   userImage,
   isOwner = false,
+  isPublicInitial = false,
   serverUpdatedAt = 0,
 }: WhiteboardEditorProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,7 +58,7 @@ export default function WhiteboardEditor({
   const [dataReady, setDataReady] = useState(false);
   const [title, setTitle] = useState(initialTitle);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [isPublic, setIsPublic] = useState(false);
+  const [isPublic, setIsPublic] = useState(isPublicInitial);
   const [roomUsers, setRoomUsers] = useState<
     { userId: string; name: string; color: string }[]
   >([]);
@@ -441,21 +443,21 @@ export default function WhiteboardEditor({
 
       {/* ── Floating overlay ── */}
       <div className="absolute inset-0 pointer-events-none z-[10]">
-        <div className="absolute top-3 left-3 right-3 flex items-start justify-between">
+        <div className="absolute top-3 left-2 right-2 sm:left-3 sm:right-3 flex items-start justify-between gap-2">
           {/* ── Breadcrumb / Title pill ── */}
-          <div className="pointer-events-auto flex items-center gap-0.5 rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg px-1 py-1 shadow-sm">
+          <div className="pointer-events-auto flex items-center gap-0.5 rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg px-1 py-1 shadow-sm min-w-0 shrink">
             <Link
               href="/whiteboards"
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+              className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] shrink-0"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                 <polyline points="9 22 9 12 15 12 15 22" />
               </svg>
-              Home
+              <span className="hidden sm:inline">Home</span>
             </Link>
 
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-40">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-40 shrink-0 hidden sm:block">
               <polyline points="9 18 15 12 9 6" />
             </svg>
 
@@ -469,13 +471,13 @@ export default function WhiteboardEditor({
                   if (e.key === "Enter") handleTitleSave();
                   if (e.key === "Escape") { setTitle(initialTitle); setIsEditingTitle(false); }
                 }}
-                className="h-7 w-44 rounded-lg border border-[var(--primary)]/30 bg-transparent px-2 text-xs font-semibold text-[var(--foreground)] outline-none ring-2 ring-[var(--primary)]/20"
+                className="h-7 w-32 sm:w-44 rounded-lg border border-[var(--primary)]/30 bg-transparent px-2 text-xs font-semibold text-[var(--foreground)] outline-none ring-2 ring-[var(--primary)]/20"
                 autoFocus
               />
             ) : (
               <button
                 onClick={startEditingTitle}
-                className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)] truncate max-w-[180px]"
+                className="rounded-lg px-2 py-1.5 text-xs font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)] truncate max-w-[100px] sm:max-w-[180px]"
               >
                 {title}
               </button>
@@ -486,10 +488,10 @@ export default function WhiteboardEditor({
           </div>
 
           {/* ── Right: avatars + share ── */}
-          <div className="pointer-events-auto flex items-center gap-2.5">
+          <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             <TooltipProvider>
               <div className="flex items-center -space-x-2">
-                {allUsers.map((u, i) => (
+                {allUsers.slice(0, 3).map((u, i) => (
                   <Tooltip key={u.userId}>
                     <TooltipTrigger asChild>
                       <div
@@ -497,7 +499,7 @@ export default function WhiteboardEditor({
                         style={{ zIndex: allUsers.length - i }}
                       >
                         <div
-                          className="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                          className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full text-[10px] sm:text-[11px] font-bold text-white"
                           style={{ backgroundColor: u.color }}
                         >
                           {u.image ? (
@@ -506,7 +508,7 @@ export default function WhiteboardEditor({
                             u.name.charAt(0).toUpperCase()
                           )}
                         </div>
-                        <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-400" />
+                        <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full border-2 border-white bg-emerald-400" />
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="rounded-lg bg-[var(--foreground)] px-2.5 py-1 text-[11px] text-[var(--background)]">
@@ -514,16 +516,15 @@ export default function WhiteboardEditor({
                     </TooltipContent>
                   </Tooltip>
                 ))}
+                {allUsers.length > 3 && (
+                  <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-[var(--muted)] text-[10px] font-bold text-[var(--muted-foreground)] ring-[2.5px] ring-white">
+                    +{allUsers.length - 3}
+                  </div>
+                )}
               </div>
             </TooltipProvider>
 
-            {allUsers.length > 1 && (
-              <span className="text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">
-                {allUsers.length}
-              </span>
-            )}
-
-            <div className="h-5 w-px bg-[var(--border)]" />
+            <div className="h-5 w-px bg-[var(--border)] hidden sm:block" />
 
             {isOwner && (
               <ShareDialog
@@ -535,9 +536,9 @@ export default function WhiteboardEditor({
 
             <Link
               href="/whiteboards"
-              className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+              className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect width="7" height="7" x="3" y="3" rx="1" />
                 <rect width="7" height="7" x="14" y="3" rx="1" />
                 <rect width="7" height="7" x="14" y="14" rx="1" />

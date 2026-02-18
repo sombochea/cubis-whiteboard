@@ -96,23 +96,44 @@ export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic }: 
 
         <div className="space-y-5 pt-1">
           {/* Public toggle */}
-          <div className="flex items-center justify-between rounded-xl bg-[var(--muted)] p-3">
-            <div>
-              <p className="text-sm font-medium text-[var(--foreground)]">Public access</p>
-              <p className="text-xs text-[var(--muted-foreground)]">Anyone with the link can view</p>
-            </div>
-            <button
-              onClick={togglePublic}
-              className={`relative h-6 w-11 rounded-full transition-colors ${
-                isPublic ? "bg-[var(--primary)]" : "bg-[var(--border)]"
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-                  isPublic ? "left-[22px]" : "left-0.5"
+          <div className="rounded-xl bg-[var(--muted)] p-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-[var(--foreground)]">Public access</p>
+                <p className="text-xs text-[var(--muted-foreground)]">Anyone with the link can view</p>
+              </div>
+              <button
+                onClick={togglePublic}
+                className={`relative h-6 w-11 rounded-full transition-colors ${
+                  isPublic ? "bg-[var(--primary)]" : "bg-[var(--border)]"
                 }`}
-              />
-            </button>
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                    isPublic ? "left-[22px]" : "left-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+            {isPublic && (
+              <div className="flex gap-1.5">
+                <input
+                  readOnly
+                  value={`${typeof window !== "undefined" ? window.location.origin : ""}/share/${whiteboardId}`}
+                  className="h-8 flex-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 text-xs text-[var(--muted-foreground)] select-all"
+                  onFocus={(e) => e.target.select()}
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/share/${whiteboardId}`);
+                    toast.success("Link copied");
+                  }}
+                  className="h-8 shrink-0 rounded-lg border border-[var(--border)] px-2.5 text-xs font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--background)]"
+                >
+                  Copy
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Add collaborator */}

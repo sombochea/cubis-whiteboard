@@ -168,15 +168,15 @@ export default function DashboardView({ userId, userName, userEmail, userImage }
     <div className="min-h-screen bg-[var(--background)]">
       {/* ── Nav ── */}
       <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--card)]/80 backdrop-blur-lg">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6 gap-2">
+          <div className="flex items-center gap-3 shrink-0">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--primary)]">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 19l7-7 3 3-7 7-3-3z" />
                 <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
               </svg>
             </div>
-            <span className="text-[15px] font-semibold text-[var(--foreground)]">Cubis</span>
+            <span className="text-[15px] font-semibold text-[var(--foreground)] hidden xs:inline sm:inline">Cubis</span>
           </div>
 
           <div className="hidden sm:block relative w-full max-w-sm mx-6">
@@ -213,7 +213,7 @@ export default function DashboardView({ userId, userName, userEmail, userImage }
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-8 space-y-6">
+      <main className="mx-auto max-w-6xl px-4 sm:px-6 py-8 space-y-6">
         {/* Mobile search */}
         <div className="sm:hidden relative">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
