@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useOnlineStatus } from "@/hooks/use-online-status";
 import {
   Tooltip,
   TooltipContent,
@@ -11,7 +12,7 @@ import {
 import ShareDialog from "./share-dialog";
 import { toast } from "sonner";
 import Link from "next/link";
-import { saveToLocal, loadFromLocal, clearLocal } from "@/lib/local-store";
+import { saveToLocal, loadFromLocal, clearLocal, enqueueSave, drainSyncQueue, pendingQueueCount } from "@/lib/local-store";
 import "@excalidraw/excalidraw/index.css";
 
 interface BinaryFileData {
@@ -59,12 +60,15 @@ export default function WhiteboardEditor({
   const [roomUsers, setRoomUsers] = useState<
     { userId: string; name: string; color: string }[]
   >([]);
+  const [syncStatus, setSyncStatus] = useState<"synced" | "saving" | "offline" | "syncing">("synced");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const excalidrawRef = useRef<any>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const lastFileKeysRef = useRef<string>("");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const collaboratorsRef = useRef<Map<string, any>>(new Map());
+
+  const isOnline = useOnlineStatus();
 
   // Load Excalidraw
   useEffect(() => {
@@ -83,31 +87,47 @@ export default function WhiteboardEditor({
   useEffect(() => {
     loadFromLocal(whiteboardId).then((local) => {
       if (local && local.savedAt > serverUpdatedAt) {
-        // Local is newer — use it and push to server
         setResolvedData({ elements: local.elements, appState: local.appState, files: local.files });
-        fetch(`/api/whiteboards/${whiteboardId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ data: { elements: local.elements, appState: local.appState, files: local.files } }),
-        }).then(() => clearLocal(whiteboardId)).catch(() => {});
+        if (navigator.onLine) {
+          fetch(`/api/whiteboards/${whiteboardId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data: { elements: local.elements, appState: local.appState, files: local.files } }),
+          }).then(() => clearLocal(whiteboardId)).catch(() => {});
+        }
       } else {
-        // Server is newer or no local — clear stale local
         clearLocal(whiteboardId).catch(() => {});
       }
       setDataReady(true);
     }).catch(() => setDataReady(true));
   }, [whiteboardId, serverUpdatedAt]);
 
+  // ── Drain sync queue when coming back online ──
+  useEffect(() => {
+    if (!isOnline) {
+      setSyncStatus("offline");
+      return;
+    }
+    let cancelled = false;
+    setSyncStatus("syncing");
+    drainSyncQueue().then((count) => {
+      if (cancelled) return;
+      if (count > 0) toast.success(`Synced ${count} offline change${count > 1 ? "s" : ""}`);
+      setSyncStatus("synced");
+    }).catch(() => {
+      if (!cancelled) setSyncStatus("synced");
+    });
+    return () => { cancelled = true; };
+  }, [isOnline]);
+
   // ── Realtime ──
   const rt = useRealtime({ roomId: whiteboardId, userId, userName });
 
-  // Register realtime callbacks (uses refs internally, no stale closure)
   useEffect(() => {
     rt.onDrawingUpdate(({ elements: remoteElements }) => {
       const api = excalidrawRef.current;
       if (!api) return;
       const appState = api.getAppState();
-      // Don't update while user is actively drawing/resizing — it resets their in-progress element
       if (appState.newElement || appState.resizingElement || appState.draggingElement || appState.editingTextElement) return;
       const localElements = api.getSceneElements();
       if (excalidrawUtils?.reconcileElements) {
@@ -123,22 +143,15 @@ export default function WhiteboardEditor({
       if (!api || !files) return;
       const fileArray = Object.values(files).map((f: unknown) => {
         const file = f as BinaryFileData;
-        return {
-          id: file.id,
-          mimeType: file.mimeType,
-          dataURL: file.dataURL,
-          created: file.created || Date.now(),
-        };
+        return { id: file.id, mimeType: file.mimeType, dataURL: file.dataURL, created: file.created || Date.now() };
       });
       if (fileArray.length > 0) api.addFiles(fileArray);
     });
 
-    // Feed cursor positions into Excalidraw's collaborators Map for native cursor rendering
     rt.onCursorMove((data: unknown) => {
       const api = excalidrawRef.current;
       if (!api) return;
       const d = data as { userId: string; name: string; color: string; x: number; y: number; button?: string; tool?: string };
-      // Must create a NEW Map — Excalidraw won't re-render if same reference
       const updated = new Map(collaboratorsRef.current);
       updated.set(d.userId, {
         username: d.name,
@@ -158,50 +171,62 @@ export default function WhiteboardEditor({
       for (const u of users) {
         if (u.userId === userId) continue;
         const existing = collaboratorsRef.current.get(u.userId);
-        updated.set(u.userId, existing || {
-          username: u.name,
-          color: { background: u.color, stroke: u.color },
-        });
+        updated.set(u.userId, existing || { username: u.name, color: { background: u.color, stroke: u.color } });
       }
       collaboratorsRef.current = updated;
       api.updateScene({ collaborators: updated });
     });
   }, [rt, excalidrawUtils, userId]);
 
-  // ── Persistence: IndexedDB (immediate) + server (debounced 5s) ──
+  // ── Persistence ──
   const serverSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pendingSave = useRef<{ elements: unknown[]; appState: unknown; files: Record<string, BinaryFileData> } | null>(null);
 
   const flushToServer = useCallback(async () => {
     const data = pendingSave.current;
     if (!data) return;
+
+    if (!navigator.onLine) {
+      // Offline: queue for later
+      await enqueueSave(whiteboardId, data).catch(() => {});
+      pendingSave.current = null;
+      setSyncStatus("offline");
+      return;
+    }
+
     pendingSave.current = null;
+    setSyncStatus("saving");
     try {
       await fetch(`/api/whiteboards/${whiteboardId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data }),
       });
-      // Server has latest — clear local cache
       clearLocal(whiteboardId).catch(() => {});
+      setSyncStatus("synced");
     } catch {
-      pendingSave.current = data;
+      // Network failed mid-request — enqueue
+      await enqueueSave(whiteboardId, data).catch(() => {});
+      setSyncStatus("offline");
     }
   }, [whiteboardId]);
 
-  // Flush on unmount / tab close using sendBeacon (works during unload)
   useEffect(() => {
     const onBeforeUnload = () => {
       const data = pendingSave.current;
       if (!data) return;
       pendingSave.current = null;
-      // keepalive: true ensures fetch completes even during page unload
-      fetch(`/api/whiteboards/${whiteboardId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data }),
-        keepalive: true,
-      }).catch(() => {});
+      if (navigator.onLine) {
+        fetch(`/api/whiteboards/${whiteboardId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data }),
+          keepalive: true,
+        }).catch(() => {});
+      } else {
+        // Can't await in beforeunload — saveToLocal is fire-and-forget here
+        // The data is already in IndexedDB from the immediate save below
+      }
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => {
@@ -213,36 +238,56 @@ export default function WhiteboardEditor({
 
   const saveScene = useCallback(
     (elements: unknown[], appState: unknown, files: Record<string, BinaryFileData>) => {
-      // 1. IndexedDB — immediate, survives crashes
+      // 1. IndexedDB — immediate, survives crashes & offline
       saveToLocal(whiteboardId, { elements, appState, files }).catch(() => {});
 
-      // 2. Server — debounced 5s
+      // 2. Server — debounced 3s (reduced from 5s for snappier sync)
       pendingSave.current = { elements, appState, files };
       clearTimeout(serverSaveTimer.current);
-      serverSaveTimer.current = setTimeout(flushToServer, 5000);
+      serverSaveTimer.current = setTimeout(flushToServer, 3000);
     },
     [whiteboardId, flushToServer]
   );
 
-  // ── Excalidraw onChange ──
+  // ── Performance: throttled onChange (fires at most every 100ms during drawing) ──
+  const changeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const latestChange = useRef<{ elements: readonly unknown[]; appState: unknown; files: Record<string, BinaryFileData> } | null>(null);
+
+  const processChange = useCallback(() => {
+    const c = latestChange.current;
+    if (!c) return;
+    latestChange.current = null;
+
+    // Emit elements over socket
+    rt.emitDrawingUpdate(c.elements as unknown[]);
+
+    // Only emit files when new ones are added
+    const fileKeys = Object.keys(c.files || {}).sort().join(",");
+    if (fileKeys !== lastFileKeysRef.current) {
+      lastFileKeysRef.current = fileKeys;
+      rt.emitFiles(c.files || {});
+    }
+
+    // Persist
+    saveScene(c.elements as unknown[], c.appState, c.files);
+  }, [rt, saveScene]);
+
   const handleChange = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (elements: readonly any[], appState: any, files: Record<string, BinaryFileData>) => {
-      // Emit elements over socket (throttled inside hook)
-      rt.emitDrawingUpdate(elements as unknown[]);
-
-      // Only emit files when new ones are added
-      const fileKeys = Object.keys(files || {}).sort().join(",");
-      if (fileKeys !== lastFileKeysRef.current) {
-        lastFileKeysRef.current = fileKeys;
-        rt.emitFiles(files || {});
+      latestChange.current = { elements, appState, files };
+      if (!changeTimer.current) {
+        changeTimer.current = setTimeout(() => {
+          changeTimer.current = undefined;
+          processChange();
+        }, 100);
       }
-
-      // Save to DB
-      saveScene(elements as unknown[], appState, files);
     },
-    [rt, saveScene]
+    [processChange]
   );
+
+  // Cleanup throttle timer
+  useEffect(() => () => { clearTimeout(changeTimer.current); processChange(); }, [processChange]);
 
   const handlePointerUpdate = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -259,6 +304,7 @@ export default function WhiteboardEditor({
 
   const handleTitleSave = async () => {
     setIsEditingTitle(false);
+    if (!navigator.onLine) { toast.info("Title will sync when back online"); return; }
     await fetch(`/api/whiteboards/${whiteboardId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -271,12 +317,22 @@ export default function WhiteboardEditor({
     setTimeout(() => titleInputRef.current?.select(), 0);
   };
 
+  // ── Memoize initial data to prevent Excalidraw re-init ──
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const excalidrawInitialData = useMemo(() => ({
+    elements: (resolvedData?.elements as any) || [],
+    appState: {
+      ...(resolvedData?.appState || {}),
+      collaborators: new Map(),
+    },
+    files: resolvedData?.files ? Object.values(resolvedData.files) : [],
+  }), [resolvedData]);
+
   // ── Loading state ──
   if (!ExcalidrawComp || !dataReady) {
     return (
       <div className="flex h-screen w-screen items-center justify-center" style={{ background: "#fafaf8" }}>
         <div className="flex flex-col items-center gap-5">
-          {/* Animated logo */}
           <div className="relative">
             <div className="h-14 w-14 rounded-2xl bg-[#6965db] flex items-center justify-center shadow-lg shadow-[#6965db]/20">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-[draw_2s_ease-in-out_infinite]">
@@ -286,28 +342,19 @@ export default function WhiteboardEditor({
                 <circle cx="11" cy="11" r="2" />
               </svg>
             </div>
-            {/* Pulse ring */}
             <div className="absolute inset-0 rounded-2xl border-2 border-[#6965db]/30 animate-ping" />
           </div>
           <div className="text-center">
             <p className="text-sm font-medium text-[#1b1b1f]">Preparing your canvas</p>
             <p className="mt-1 text-xs text-[#8b8b8e]">Loading drawing tools…</p>
           </div>
-          {/* Progress bar */}
           <div className="h-1 w-48 overflow-hidden rounded-full bg-[#e8e8e4]">
             <div className="h-full w-1/2 rounded-full bg-[#6965db] animate-[shimmer_1.5s_ease-in-out_infinite]" />
           </div>
         </div>
-
         <style>{`
-          @keyframes draw {
-            0%, 100% { opacity: 1; transform: rotate(0deg); }
-            50% { opacity: 0.6; transform: rotate(3deg); }
-          }
-          @keyframes shimmer {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(300%); }
-          }
+          @keyframes draw { 0%, 100% { opacity: 1; transform: rotate(0deg); } 50% { opacity: 0.6; transform: rotate(3deg); } }
+          @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
         `}</style>
       </div>
     );
@@ -326,15 +373,8 @@ export default function WhiteboardEditor({
       <div className="absolute inset-0">
         <ExcalidrawComp
           excalidrawAPI={(api: any) => { excalidrawRef.current = api; }}
-          isCollaborating={true}
-          initialData={{
-            elements: (resolvedData?.elements as any) || [],
-            appState: {
-              ...(resolvedData?.appState || {}),
-              collaborators: new Map(),
-            },
-            files: resolvedData?.files ? Object.values(resolvedData.files) : [],
-          }}
+          isCollaborating={isOnline}
+          initialData={excalidrawInitialData}
           onChange={handleChange}
           onPointerUpdate={handlePointerUpdate}
           generateIdForFile={(file: File) =>
@@ -372,10 +412,7 @@ export default function WhiteboardEditor({
                 onBlur={handleTitleSave}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleTitleSave();
-                  if (e.key === "Escape") {
-                    setTitle(initialTitle);
-                    setIsEditingTitle(false);
-                  }
+                  if (e.key === "Escape") { setTitle(initialTitle); setIsEditingTitle(false); }
                 }}
                 className="h-7 w-44 rounded-lg border border-[var(--primary)]/30 bg-transparent px-2 text-xs font-semibold text-[var(--foreground)] outline-none ring-2 ring-[var(--primary)]/20"
                 autoFocus
@@ -388,6 +425,9 @@ export default function WhiteboardEditor({
                 {title}
               </button>
             )}
+
+            {/* ── Sync status indicator ── */}
+            <SyncIndicator status={syncStatus} isOnline={isOnline} />
           </div>
 
           {/* ── Right: avatars + share ── */}
@@ -452,6 +492,27 @@ export default function WhiteboardEditor({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Sync status pill ──
+function SyncIndicator({ status, isOnline }: { status: string; isOnline: boolean }) {
+  const display = !isOnline ? "offline" : status;
+
+  const config: Record<string, { color: string; bg: string; label: string }> = {
+    synced:  { color: "text-emerald-600", bg: "bg-emerald-500", label: "Saved" },
+    saving:  { color: "text-amber-600",   bg: "bg-amber-500",   label: "Saving…" },
+    syncing: { color: "text-blue-600",    bg: "bg-blue-500",    label: "Syncing…" },
+    offline: { color: "text-gray-500",    bg: "bg-gray-400",    label: "Offline" },
+  };
+
+  const c = config[display] || config.synced;
+
+  return (
+    <div className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-medium ${c.color}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${c.bg} ${display === "syncing" || display === "saving" ? "animate-pulse" : ""}`} />
+      {c.label}
     </div>
   );
 }
