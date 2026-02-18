@@ -8,6 +8,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { io, Socket } from "socket.io-client";
 
@@ -86,6 +93,11 @@ export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic }: 
 
   const addCollaborator = async () => {
     if (!email.trim()) return;
+    // Prevent duplicate invite
+    if (collaborators.some((c) => c.userEmail.toLowerCase() === email.trim().toLowerCase())) {
+      toast.error("This person already has access");
+      return;
+    }
     const res = await fetch(`/api/whiteboards/${whiteboardId}/collaborate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -213,14 +225,15 @@ export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic }: 
                 onKeyDown={(e) => e.key === "Enter" && addCollaborator()}
                 className="h-9 flex-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
               />
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as "viewer" | "editor")}
-                className="h-9 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 text-xs font-medium text-[var(--foreground)] focus:border-[var(--primary)] focus:outline-none"
-              >
-                <option value="viewer">Viewer</option>
-                <option value="editor">Editor</option>
-              </select>
+              <Select value={role} onValueChange={(v) => setRole(v as "viewer" | "editor")}>
+                <SelectTrigger className="h-9 w-[90px] shrink-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                  <SelectItem value="editor">Editor</SelectItem>
+                </SelectContent>
+              </Select>
               <button
                 onClick={addCollaborator}
                 className="h-9 rounded-lg bg-[var(--primary)] px-3 text-xs font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
@@ -283,14 +296,15 @@ export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic }: 
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <select
-                        value={c.role}
-                        onChange={(e) => changeRole(c.id, c.userId, e.target.value)}
-                        className="h-6 rounded-md border border-[var(--border)] bg-[var(--background)] px-1.5 text-[10px] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide focus:border-[var(--primary)] focus:outline-none"
-                      >
-                        <option value="viewer">Viewer</option>
-                        <option value="editor">Editor</option>
-                      </select>
+                      <Select value={c.role} onValueChange={(v) => changeRole(c.id, c.userId, v)}>
+                        <SelectTrigger className="h-6 w-[80px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="viewer">Viewer</SelectItem>
+                          <SelectItem value="editor">Editor</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <button
                         onClick={() => removeCollaborator(c.id)}
                         className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--destructive)]/10 hover:text-[var(--destructive)]"
