@@ -3,7 +3,8 @@
 const DB_NAME = "cubis-whiteboard";
 const STORE_NAME = "scenes";
 const QUEUE_STORE = "sync-queue";
-const DB_VERSION = 2;
+const LIBRARY_STORE = "library";
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -15,6 +16,7 @@ function openDB(): Promise<IDBDatabase> {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
       if (!db.objectStoreNames.contains(QUEUE_STORE)) db.createObjectStore(QUEUE_STORE);
+      if (!db.objectStoreNames.contains(LIBRARY_STORE)) db.createObjectStore(LIBRARY_STORE);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => { dbPromise = null; reject(req.error); };
@@ -122,6 +124,30 @@ export async function pendingQueueCount(): Promise<number> {
     const tx = db.transaction(QUEUE_STORE, "readonly");
     const req = tx.objectStore(QUEUE_STORE).count();
     req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ── Personal library: local-first persistence ──
+
+const LIBRARY_KEY = "user-library";
+
+export async function saveLibraryLocal(items: unknown[]): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LIBRARY_STORE, "readwrite");
+    tx.objectStore(LIBRARY_STORE).put({ items, savedAt: Date.now() }, LIBRARY_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function loadLibraryLocal(): Promise<{ items: unknown[]; savedAt: number } | null> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LIBRARY_STORE, "readonly");
+    const req = tx.objectStore(LIBRARY_STORE).get(LIBRARY_KEY);
+    req.onsuccess = () => resolve(req.result || null);
     req.onerror = () => reject(req.error);
   });
 }

@@ -12,7 +12,7 @@ import {
 import ShareDialog from "./share-dialog";
 import { toast } from "sonner";
 import Link from "next/link";
-import { saveToLocal, loadFromLocal, clearLocal, enqueueSave, drainSyncQueue, pendingQueueCount } from "@/lib/local-store";
+import { saveToLocal, loadFromLocal, clearLocal, enqueueSave, drainSyncQueue, pendingQueueCount, saveLibraryLocal, loadLibraryLocal } from "@/lib/local-store";
 import "@excalidraw/excalidraw/index.css";
 
 interface BinaryFileData {
@@ -61,6 +61,7 @@ export default function WhiteboardEditor({
     { userId: string; name: string; color: string }[]
   >([]);
   const [syncStatus, setSyncStatus] = useState<"synced" | "saving" | "offline" | "syncing">("synced");
+  const [libraryItems, setLibraryItems] = useState<unknown[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const excalidrawRef = useRef<any>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -101,6 +102,18 @@ export default function WhiteboardEditor({
       setDataReady(true);
     }).catch(() => setDataReady(true));
   }, [whiteboardId, serverUpdatedAt]);
+
+  // ── Load personal library: local-first, then merge server ──
+  useEffect(() => {
+    loadLibraryLocal().then((local) => {
+      if (local?.items?.length) setLibraryItems(local.items);
+    }).catch(() => {});
+    if (navigator.onLine) {
+      fetch("/api/library").then((r) => r.ok ? r.json() : []).then((serverItems: unknown[]) => {
+        if (serverItems.length) setLibraryItems(serverItems);
+      }).catch(() => {});
+    }
+  }, []);
 
   // ── Drain sync queue when coming back online ──
   useEffect(() => {
@@ -302,6 +315,27 @@ export default function WhiteboardEditor({
     [rt]
   );
 
+  // ── Library change: save locally immediately, debounce server sync ──
+  const libSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const handleLibraryChange = useCallback(
+    (items: unknown[]) => {
+      setLibraryItems(items);
+      saveLibraryLocal(items).catch(() => {});
+      clearTimeout(libSaveTimer.current);
+      libSaveTimer.current = setTimeout(() => {
+        if (navigator.onLine) {
+          fetch("/api/library", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items }),
+          }).catch(() => {});
+        }
+      }, 2000);
+    },
+    []
+  );
+  useEffect(() => () => clearTimeout(libSaveTimer.current), []);
+
   const handleTitleSave = async () => {
     setIsEditingTitle(false);
     if (!navigator.onLine) { toast.info("Title will sync when back online"); return; }
@@ -326,7 +360,8 @@ export default function WhiteboardEditor({
       collaborators: new Map(),
     },
     files: resolvedData?.files ? Object.values(resolvedData.files) : [],
-  }), [resolvedData]);
+    libraryItems,
+  }), [resolvedData, libraryItems]);
 
   // ── Loading state ──
   if (!ExcalidrawComp || !dataReady) {
@@ -377,6 +412,7 @@ export default function WhiteboardEditor({
           initialData={excalidrawInitialData}
           onChange={handleChange}
           onPointerUpdate={handlePointerUpdate}
+          onLibraryChange={handleLibraryChange}
           generateIdForFile={(file: File) =>
             `${whiteboardId}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`
           }

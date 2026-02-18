@@ -136,6 +136,15 @@ export const collaborator = pgTable(
   ]
 );
 
+// ── Personal Library (reusable Excalidraw shapes) ───────────────────
+export const library = pgTable("library", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  items: jsonb("items").$type<unknown[]>().notNull().default([]),
+  ...timestamps,
+});
+
 // ── File uploads ────────────────────────────────────────────────────
 export const file = pgTable("file", {
   id: id(),
