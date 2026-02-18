@@ -11,7 +11,7 @@ if (process.env.ZITADEL_CLIENT_ID) {
     genericOAuth({
       config: [
         {
-          providerId: "zitadel",
+          providerId: "sso",
           discoveryUrl: `${process.env.ZITADEL_ISSUER}/.well-known/openid-configuration`,
           clientId: process.env.ZITADEL_CLIENT_ID!,
           clientSecret: process.env.ZITADEL_CLIENT_SECRET!,

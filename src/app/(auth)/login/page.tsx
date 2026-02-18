@@ -25,7 +25,7 @@ export default function LoginPage() {
   };
 
   const handleZitadel = async () => {
-    await signIn.oauth2({ providerId: "zitadel", callbackURL: "/whiteboards" });
+    await signIn.oauth2({ providerId: "sso", callbackURL: "/whiteboards" });
   };
 
   return (
@@ -106,7 +106,7 @@ export default function LoginPage() {
               <polyline points="10 17 15 12 10 7" />
               <line x1="15" y1="12" x2="3" y2="12" />
             </svg>
-            Continue with Zitadel
+            Continue with Cubis SSO
           </button>
         </div>
 
