@@ -16,6 +16,7 @@ if (process.env.ZITADEL_CLIENT_ID) {
           clientId: process.env.ZITADEL_CLIENT_ID!,
           clientSecret: process.env.ZITADEL_CLIENT_SECRET!,
           scopes: ["openid", "profile", "email"],
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback/sso`,
         },
       ],
     })
