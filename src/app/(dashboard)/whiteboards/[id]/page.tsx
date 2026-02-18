@@ -63,6 +63,7 @@ export default async function WhiteboardPage({
       initialTitle={wb.title}
       userId={session.user.id}
       userName={session.user.name}
+      userEmail={session.user.email}
       userImage={session.user.image}
       isOwner={isOwner}
       isPublicInitial={wb.isPublic}

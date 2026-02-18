@@ -63,18 +63,19 @@ export async function POST(
   if (existing) return NextResponse.json({ error: "Already has access" }, { status: 400 });
 
   // Already pending?
-  const [pending] = await db
-    .select({ id: accessRequest.id })
+  const [existing_req] = await db
+    .select({ id: accessRequest.id, status: accessRequest.status })
     .from(accessRequest)
-    .where(
-      and(
-        eq(accessRequest.whiteboardId, id),
-        eq(accessRequest.userId, session.user.id),
-        eq(accessRequest.status, "pending")
-      )
-    )
+    .where(and(eq(accessRequest.whiteboardId, id), eq(accessRequest.userId, session.user.id)))
     .limit(1);
-  if (pending) return NextResponse.json({ status: "pending" });
+
+  if (existing_req?.status === "pending") return NextResponse.json({ status: "pending" });
+
+  // Re-request after denial — reset to pending
+  if (existing_req?.status === "denied") {
+    await db.update(accessRequest).set({ status: "pending" }).where(eq(accessRequest.id, existing_req.id));
+    return NextResponse.json({ status: "pending" }, { status: 200 });
+  }
 
   const [req] = await db
     .insert(accessRequest)

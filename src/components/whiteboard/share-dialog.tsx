@@ -30,6 +30,7 @@ interface ShareDialogProps {
   whiteboardId: string;
   isPublic: boolean;
   onTogglePublic: (isPublic: boolean) => void;
+  ownerEmail?: string;
 }
 
 interface AccessRequest {
@@ -40,7 +41,7 @@ interface AccessRequest {
   userImage: string | null;
 }
 
-export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic }: ShareDialogProps) {
+export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic, ownerEmail }: ShareDialogProps) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"viewer" | "editor">("viewer");
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -48,8 +49,13 @@ export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic }: 
   const [open, setOpen] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
+  const isSelf = !!ownerEmail && email.trim().toLowerCase() === ownerEmail.toLowerCase();
+  const isDuplicate = collaborators.some((c) => c.userEmail.toLowerCase() === email.trim().toLowerCase());
+  const addDisabled = !email.trim() || isSelf || isDuplicate;
+
   // Socket for realtime access request notifications
   useEffect(() => {
+    fetchRequests(); // Load on mount for badge
     const s = io({ path: "/api/socketio", transports: ["polling", "websocket"] });
     socketRef.current = s;
 
@@ -92,12 +98,7 @@ export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic }: 
   };
 
   const addCollaborator = async () => {
-    if (!email.trim()) return;
-    // Prevent duplicate invite
-    if (collaborators.some((c) => c.userEmail.toLowerCase() === email.trim().toLowerCase())) {
-      toast.error("This person already has access");
-      return;
-    }
+    if (addDisabled) return;
     const res = await fetch(`/api/whiteboards/${whiteboardId}/collaborate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -158,13 +159,18 @@ export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic }: 
       }}
     >
       <DialogTrigger asChild>
-        <button className="flex h-8 items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3.5 text-xs font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-[0.98]">
+        <button className="relative flex h-8 items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3.5 text-xs font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-[0.98]">
+          {requests.length > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-[var(--card)]">
+              {requests.length}
+            </span>
+          )}
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
             <polyline points="16 6 12 2 8 6" />
             <line x1="12" y1="2" x2="12" y2="15" />
           </svg>
-          Share
+          <span className="hidden sm:inline">Share</span>
         </button>
       </DialogTrigger>
       <DialogContent className="rounded-2xl border-[var(--border)] bg-[var(--card)] shadow-xl sm:max-w-[420px]">
@@ -236,11 +242,19 @@ export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic }: 
               </Select>
               <button
                 onClick={addCollaborator}
-                className="h-9 rounded-lg bg-[var(--primary)] px-3 text-xs font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
+                disabled={addDisabled}
+                title={isSelf ? "You can't invite yourself" : isDuplicate ? "Already has access" : undefined}
+                className="h-9 rounded-lg bg-[var(--primary)] px-3 text-xs font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Add
               </button>
             </div>
+            {isSelf && (
+              <p className="text-[11px] text-[var(--muted-foreground)]">You can't invite yourself to your own board.</p>
+            )}
+            {isDuplicate && !isSelf && (
+              <p className="text-[11px] text-[var(--muted-foreground)]">This person already has access.</p>
+            )}
           </div>
 
           {/* Access requests */}

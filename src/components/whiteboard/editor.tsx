@@ -32,6 +32,7 @@ interface WhiteboardEditorProps {
   initialTitle?: string;
   userId: string;
   userName: string;
+  userEmail?: string;
   userImage?: string | null;
   isOwner?: boolean;
   isPublicInitial?: boolean;
@@ -44,6 +45,7 @@ export default function WhiteboardEditor({
   initialTitle = "Untitled",
   userId,
   userName,
+  userEmail,
   userImage,
   isOwner = false,
   isPublicInitial = false,
@@ -553,6 +555,7 @@ export default function WhiteboardEditor({
                 whiteboardId={whiteboardId}
                 isPublic={isPublic}
                 onTogglePublic={setIsPublic}
+                ownerEmail={userEmail}
               />
             )}
 

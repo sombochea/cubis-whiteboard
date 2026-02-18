@@ -109,24 +109,48 @@ export default function PublicBoard({ whiteboardId, title, data: raw, isLoggedIn
           </div>
 
           {!isLoggedIn ? (
-            <Link href="/login" className="pointer-events-auto shrink-0 rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg px-3 py-1.5 text-xs font-medium text-[var(--foreground)] shadow-sm transition-colors hover:bg-[var(--muted)]">
-              Sign in to edit
-            </Link>
+            <div className="pointer-events-auto flex items-center gap-1.5">
+              <Link href="/login" className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)]">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              </Link>
+              <Link href="/login" className="shrink-0 rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg px-3 py-1.5 text-xs font-medium text-[var(--foreground)] shadow-sm transition-colors hover:bg-[var(--muted)]">
+                Sign in to edit
+              </Link>
+            </div>
           ) : reqStatus === "pending" ? (
-            <div className="pointer-events-auto shrink-0 rounded-xl border border-amber-200 bg-amber-50/90 backdrop-blur-lg px-3 py-1.5 text-xs font-medium text-amber-700 shadow-sm">
-              Request pending
+            <div className="pointer-events-auto flex items-center gap-1.5">
+              <Link href="/whiteboards" className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)]">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              </Link>
+              <div className="shrink-0 rounded-xl border border-amber-200 bg-amber-50/90 backdrop-blur-lg px-3 py-1.5 text-xs font-medium text-amber-700 shadow-sm">
+                Request pending…
+              </div>
             </div>
           ) : reqStatus === "denied" ? (
-            <div className="pointer-events-auto shrink-0 rounded-xl border border-red-200 bg-red-50/90 backdrop-blur-lg px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm">
-              Request denied
+            <div className="pointer-events-auto flex items-center gap-1.5">
+              <Link href="/whiteboards" className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)]">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              </Link>
+              <button
+                onClick={requestAccess}
+                className="shrink-0 flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50/90 backdrop-blur-lg px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm transition-colors hover:bg-red-100/90"
+              >
+                Request denied
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+              </button>
             </div>
           ) : (
-            <button
-              onClick={requestAccess}
-              className="pointer-events-auto shrink-0 rounded-xl border border-[var(--border)] bg-[var(--primary)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-[0.98]"
-            >
-              Request edit access
-            </button>
+            <div className="pointer-events-auto flex items-center gap-1.5">
+              <Link href="/whiteboards" className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)]">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              </Link>
+              <button
+                onClick={requestAccess}
+                className="shrink-0 rounded-xl border border-[var(--border)] bg-[var(--primary)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-[0.98]"
+              >
+                Request edit access
+              </button>
+            </div>
           )}
         </div>
       </div>
