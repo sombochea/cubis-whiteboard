@@ -192,3 +192,86 @@
 .excalidraw .App-menu_top {
   margin-top: 52px;
 }
+
+/* ─── Excalidraw context menu override ─────────────────────────── */
+.excalidraw .context-menu {
+  border-radius: 14px !important;
+  border: 1px solid var(--border) !important;
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.10), 0 1.5px 4px rgba(0, 0, 0, 0.06) !important;
+  padding: 5px !important;
+  min-width: 200px !important;
+}
+
+.excalidraw .context-menu button {
+  color: #1b1b1f !important;
+}
+
+.excalidraw .context-menu-item {
+  border-radius: 8px !important;
+  padding: 6px 10px 6px 12px !important;
+  font-size: 13px !important;
+  font-weight: 450 !important;
+  min-width: unset !important;
+}
+
+.excalidraw .context-menu-item:hover {
+  background-color: #f0effa !important;
+  color: #1b1b1f !important;
+}
+
+.excalidraw .context-menu-item:hover .context-menu-item__label {
+  color: #1b1b1f !important;
+}
+
+.excalidraw .context-menu-item:hover.dangerous {
+  background-color: #fff0f0 !important;
+}
+
+.excalidraw .context-menu-item:hover.dangerous .context-menu-item__label {
+  color: #e03131 !important;
+}
+
+.excalidraw .context-menu-item__shortcut {
+  font-size: 11px !important;
+  opacity: 0.45 !important;
+  letter-spacing: 0.01em !important;
+}
+
+.excalidraw .context-menu-item-separator {
+  border-top: 1px solid #e8e8e4 !important;
+  margin: 4px 8px !important;
+}
+
+.dark .excalidraw .context-menu {
+  background-color: rgba(31, 31, 42, 0.95) !important;
+  border-color: #2e2e3a !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), 0 1.5px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+.dark .excalidraw .context-menu button {
+  color: #ededef !important;
+}
+
+.dark .excalidraw .context-menu-item:hover {
+  background-color: #2a2a3a !important;
+  color: #ededef !important;
+}
+
+.dark .excalidraw .context-menu-item:hover .context-menu-item__label {
+  color: #ededef !important;
+}
+
+.dark .excalidraw .context-menu-item:hover.dangerous {
+  background-color: rgba(240, 62, 62, 0.15) !important;
+}
+
+.dark .excalidraw .context-menu-item:hover.dangerous .context-menu-item__label {
+  color: #f03e3e !important;
+}
+
+.dark .excalidraw .context-menu-item-separator {
+  border-top-color: #2e2e3a !important;
+}
