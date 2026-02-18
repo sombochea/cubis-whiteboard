@@ -24,6 +24,8 @@ interface RealtimeHandle {
   onFilesUpdate: (cb: (data: { files: Record<string, unknown> }) => void) => void;
   onCursorMove: (cb: (data: unknown) => void) => void;
   onRoomUsers: (cb: (users: RoomUser[]) => void) => void;
+  onAccessRevoked: (cb: (data: { userId: string }) => void) => void;
+  onAccessChanged: (cb: (data: { userId: string; role: string }) => void) => void;
 }
 
 // ── WebRTC peer wrapper ──
@@ -51,6 +53,8 @@ export function useRealtime({
   const filesCbRef = useRef<((data: { files: Record<string, unknown> }) => void) | null>(null);
   const cursorCbRef = useRef<((data: unknown) => void) | null>(null);
   const usersCbRef = useRef<((users: RoomUser[]) => void) | null>(null);
+  const accessRevokedCbRef = useRef<((data: { userId: string }) => void) | null>(null);
+  const accessChangedCbRef = useRef<((data: { userId: string; role: string }) => void) | null>(null);
   const emitTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pendingElements = useRef<unknown[] | null>(null);
 
@@ -173,6 +177,14 @@ export function useRealtime({
       usersCbRef.current?.(users);
     });
 
+    socket.on("access-revoked", (data: { userId: string }) => {
+      accessRevokedCbRef.current?.(data);
+    });
+
+    socket.on("access-changed", (data: { userId: string; role: string }) => {
+      accessChangedCbRef.current?.(data);
+    });
+
     socket.on("connect_error", (err) => {
       console.error("[realtime] connection error:", err.message);
     });
@@ -244,6 +256,8 @@ export function useRealtime({
   const onFilesUpdate = useCallback((cb: (data: { files: Record<string, unknown> }) => void) => { filesCbRef.current = cb; }, []);
   const onCursorMove = useCallback((cb: (data: unknown) => void) => { cursorCbRef.current = cb; }, []);
   const onRoomUsers = useCallback((cb: (users: RoomUser[]) => void) => { usersCbRef.current = cb; }, []);
+  const onAccessRevoked = useCallback((cb: (data: { userId: string }) => void) => { accessRevokedCbRef.current = cb; }, []);
+  const onAccessChanged = useCallback((cb: (data: { userId: string; role: string }) => void) => { accessChangedCbRef.current = cb; }, []);
 
   return useMemo(() => ({
     emitDrawingUpdate,
@@ -253,5 +267,7 @@ export function useRealtime({
     onFilesUpdate,
     onCursorMove,
     onRoomUsers,
-  }), [emitDrawingUpdate, emitCursorMove, emitFiles, onDrawingUpdate, onFilesUpdate, onCursorMove, onRoomUsers]);
+    onAccessRevoked,
+    onAccessChanged,
+  }), [emitDrawingUpdate, emitCursorMove, emitFiles, onDrawingUpdate, onFilesUpdate, onCursorMove, onRoomUsers, onAccessRevoked, onAccessChanged]);
 }

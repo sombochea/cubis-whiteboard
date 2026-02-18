@@ -193,6 +193,28 @@ export default function WhiteboardEditor({
     });
   }, [rt, excalidrawUtils, userId]);
 
+  // ── Realtime access control ──
+  useEffect(() => {
+    rt.onAccessRevoked(({ userId: targetId }) => {
+      if (targetId === userId) {
+        toast.error("Your access has been revoked");
+        window.location.href = "/whiteboards";
+      }
+    });
+
+    rt.onAccessChanged(({ userId: targetId, role }) => {
+      if (targetId === userId) {
+        if (role === "viewer") {
+          toast("Your access has been changed to view-only");
+          window.location.href = `/share/${whiteboardId}`;
+        } else if (role === "editor") {
+          toast.success("You now have editor access");
+          window.location.reload();
+        }
+      }
+    });
+  }, [rt, userId, whiteboardId]);
+
   // ── Persistence ──
   const serverSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pendingSave = useRef<{ elements: unknown[]; appState: unknown; files: Record<string, BinaryFileData> } | null>(null);

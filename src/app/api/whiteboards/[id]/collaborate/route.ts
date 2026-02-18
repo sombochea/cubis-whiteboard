@@ -74,6 +74,41 @@ export async function DELETE(
   if (!wb) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { collaboratorId } = await req.json();
+
+  // Get userId before deleting so the client can emit the socket event
+  const [collab] = await db
+    .select({ userId: collaborator.userId })
+    .from(collaborator)
+    .where(eq(collaborator.id, collaboratorId))
+    .limit(1);
+
   await db.delete(collaborator).where(eq(collaborator.id, collaboratorId));
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, userId: collab?.userId });
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const session = await requireSession();
+
+  const [wb] = await db
+    .select()
+    .from(whiteboard)
+    .where(and(eq(whiteboard.id, id), eq(whiteboard.ownerId, session.user.id)))
+    .limit(1);
+  if (!wb) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { collaboratorId, role } = await req.json();
+  if (!["viewer", "editor"].includes(role))
+    return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+
+  const [updated] = await db
+    .update(collaborator)
+    .set({ role })
+    .where(and(eq(collaborator.id, collaboratorId), eq(collaborator.whiteboardId, id)))
+    .returning();
+
+  return NextResponse.json(updated);
 }

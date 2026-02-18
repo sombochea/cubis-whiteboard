@@ -16,8 +16,14 @@ export default async function PublicWhiteboardPage({
 
   const session = await getSession();
   let requestStatus: "none" | "pending" | "denied" | null = null;
+  let userId: string | null = null;
+  let userName: string | null = null;
+  let userEmail: string | null = null;
 
   if (session) {
+    userId = session.user.id;
+    userName = session.user.name;
+    userEmail = session.user.email;
     if (wb.ownerId === session.user.id) redirect(`/whiteboards/${id}`);
 
     const [collab] = await db
@@ -50,6 +56,9 @@ export default async function PublicWhiteboardPage({
       data={wb.data as any}
       isLoggedIn={!!session}
       requestStatus={requestStatus}
+      userId={userId}
+      userName={userName}
+      userEmail={userEmail}
     />
   );
 }

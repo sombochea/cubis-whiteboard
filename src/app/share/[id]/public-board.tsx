@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { io, Socket } from "socket.io-client";
 
 interface Props {
   whiteboardId: string;
@@ -10,11 +12,16 @@ interface Props {
   data: any;
   isLoggedIn: boolean;
   requestStatus: "none" | "pending" | "denied" | null;
+  userId: string | null;
+  userName: string | null;
+  userEmail: string | null;
 }
 
-export default function PublicBoard({ whiteboardId, title, data: raw, isLoggedIn, requestStatus: initialStatus }: Props) {
+export default function PublicBoard({ whiteboardId, title, data: raw, isLoggedIn, requestStatus: initialStatus, userId, userName, userEmail }: Props) {
   const [Exc, setExc] = useState<any>(null);
   const [reqStatus, setReqStatus] = useState(initialStatus);
+  const socketRef = useRef<Socket | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     // @ts-expect-error -- CSS module loaded at runtime
@@ -22,22 +29,63 @@ export default function PublicBoard({ whiteboardId, title, data: raw, isLoggedIn
     import("@excalidraw/excalidraw").then((m) => setExc(() => m.Excalidraw));
   }, []);
 
-  const init = useMemo(() => ({
-    elements: (raw?.elements as any) || [],
-    appState: { ...(raw?.appState || {}), viewBackgroundColor: "#ffffff", collaborators: new Map() },
-    files: raw?.files ? Object.values(raw.files) : [],
-  }), [raw]);
+  // Socket connection for realtime access-response
+  useEffect(() => {
+    if (!isLoggedIn || !userId) return;
+
+    const s = io({ path: "/api/socketio", transports: ["polling", "websocket"] });
+    socketRef.current = s;
+
+    s.on("connect", () => {
+      s.emit("watch-board", { boardId: whiteboardId });
+    });
+
+    s.on("access-response", ({ userId: targetId, action }: { userId: string; action: string }) => {
+      if (targetId !== userId) return;
+      if (action === "approved") {
+        toast.success("Access granted! Redirecting…");
+        setTimeout(() => router.push(`/whiteboards/${whiteboardId}`), 1000);
+      } else {
+        setReqStatus("denied");
+        toast.error("Your request was denied");
+      }
+    });
+
+    s.on("access-changed", ({ userId: targetId, role }: { userId: string; role: string }) => {
+      if (targetId !== userId) return;
+      if (role === "editor") {
+        toast.success("You now have editor access! Redirecting…");
+        setTimeout(() => router.push(`/whiteboards/${whiteboardId}`), 1000);
+      }
+    });
+
+    s.on("access-revoked", ({ userId: targetId }: { userId: string }) => {
+      if (targetId !== userId) return;
+      toast.error("Your access has been revoked");
+      setReqStatus("none");
+    });
+
+    return () => { s.disconnect(); };
+  }, [isLoggedIn, userId, whiteboardId, router]);
 
   const requestAccess = async () => {
     const res = await fetch(`/api/whiteboards/${whiteboardId}/access-requests`, { method: "POST" });
     if (res.ok || res.status === 200) {
       setReqStatus("pending");
       toast.success("Request sent! The owner will review it.");
+      // Notify owner in realtime
+      socketRef.current?.emit("access-request", { boardId: whiteboardId, userName, userEmail });
     } else {
       const d = await res.json().catch(() => ({}));
       toast.error(d.error || "Failed to send request");
     }
   };
+
+  const init = useMemo(() => ({
+    elements: (raw?.elements as any) || [],
+    appState: { ...(raw?.appState || {}), viewBackgroundColor: "#ffffff", collaborators: new Map() },
+    files: raw?.files ? Object.values(raw.files) : [],
+  }), [raw]);
 
   if (!Exc) return (
     <div className="flex h-screen items-center justify-center" style={{ background: "#fafaf8" }}>

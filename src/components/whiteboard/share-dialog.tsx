@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +9,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { io, Socket } from "socket.io-client";
 
 interface Collaborator {
   id: string;
@@ -26,6 +27,7 @@ interface ShareDialogProps {
 
 interface AccessRequest {
   id: string;
+  userId: string;
   userName: string;
   userEmail: string;
   userImage: string | null;
@@ -37,6 +39,25 @@ export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic }: 
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [open, setOpen] = useState(false);
+  const socketRef = useRef<Socket | null>(null);
+
+  // Socket for realtime access request notifications
+  useEffect(() => {
+    const s = io({ path: "/api/socketio", transports: ["polling", "websocket"] });
+    socketRef.current = s;
+
+    s.on("connect", () => {
+      s.emit("watch-board", { boardId: whiteboardId });
+    });
+
+    s.on("access-request", () => {
+      fetchRequests();
+      toast.info("New access request received");
+    });
+
+    return () => { s.disconnect(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [whiteboardId]);
 
   const fetchCollaborators = async () => {
     const res = await fetch(`/api/whiteboards/${whiteboardId}/collaborate`);
@@ -48,7 +69,7 @@ export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic }: 
     if (res.ok) setRequests(await res.json());
   };
 
-  const handleRequest = async (requestId: string, action: "approved" | "denied") => {
+  const handleRequest = async (requestId: string, action: "approved" | "denied", targetUserId?: string) => {
     const res = await fetch(`/api/whiteboards/${whiteboardId}/access-requests`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -56,6 +77,8 @@ export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic }: 
     });
     if (res.ok) {
       toast.success(action === "approved" ? "Access granted" : "Request denied");
+      // Notify requester in realtime
+      socketRef.current?.emit("access-response", { boardId: whiteboardId, userId: targetUserId, action });
       fetchRequests();
       if (action === "approved") fetchCollaborators();
     }
@@ -79,13 +102,30 @@ export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic }: 
   };
 
   const removeCollaborator = async (collaboratorId: string) => {
-    await fetch(`/api/whiteboards/${whiteboardId}/collaborate`, {
+    const res = await fetch(`/api/whiteboards/${whiteboardId}/collaborate`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ collaboratorId }),
     });
-    fetchCollaborators();
-    toast.success("Removed");
+    if (res.ok) {
+      const { userId } = await res.json();
+      socketRef.current?.emit("access-revoked", { boardId: whiteboardId, userId });
+      fetchCollaborators();
+      toast.success("Removed");
+    }
+  };
+
+  const changeRole = async (collaboratorId: string, targetUserId: string, newRole: string) => {
+    const res = await fetch(`/api/whiteboards/${whiteboardId}/collaborate`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ collaboratorId, role: newRole }),
+    });
+    if (res.ok) {
+      socketRef.current?.emit("access-changed", { boardId: whiteboardId, userId: targetUserId, role: newRole });
+      fetchCollaborators();
+      toast.success(`Role changed to ${newRole}`);
+    }
   };
 
   const togglePublic = async () => {
@@ -208,13 +248,13 @@ export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic }: 
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
-                        onClick={() => handleRequest(r.id, "approved")}
+                        onClick={() => handleRequest(r.id, "approved", r.userId)}
                         className="h-7 rounded-lg bg-emerald-500 px-2.5 text-[11px] font-semibold text-white transition-all hover:bg-emerald-600 active:scale-[0.98]"
                       >
                         Approve
                       </button>
                       <button
-                        onClick={() => handleRequest(r.id, "denied")}
+                        onClick={() => handleRequest(r.id, "denied", r.userId)}
                         className="h-7 rounded-lg border border-[var(--border)] px-2.5 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:bg-red-50 hover:text-red-600 hover:border-red-200"
                       >
                         Deny
@@ -243,9 +283,14 @@ export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic }: 
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="rounded-md bg-[var(--muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">
-                        {c.role}
-                      </span>
+                      <select
+                        value={c.role}
+                        onChange={(e) => changeRole(c.id, c.userId, e.target.value)}
+                        className="h-6 rounded-md border border-[var(--border)] bg-[var(--background)] px-1.5 text-[10px] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide focus:border-[var(--primary)] focus:outline-none"
+                      >
+                        <option value="viewer">Viewer</option>
+                        <option value="editor">Editor</option>
+                      </select>
                       <button
                         onClick={() => removeCollaborator(c.id)}
                         className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--destructive)]/10 hover:text-[var(--destructive)]"

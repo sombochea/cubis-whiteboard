@@ -78,6 +78,27 @@ export function getIO(httpServer: HTTPServer): SocketIOServer {
       }
     });
 
+    // ── Access control events ──
+    socket.on("watch-board", ({ boardId }) => {
+      socket.join(`board:${boardId}`);
+    });
+
+    socket.on("access-request", ({ boardId, userName, userEmail }) => {
+      socket.to(`board:${boardId}`).emit("access-request", { userName, userEmail });
+    });
+
+    socket.on("access-response", ({ boardId, userId: targetUserId, action }) => {
+      io!.to(`board:${boardId}`).emit("access-response", { userId: targetUserId, action });
+    });
+
+    socket.on("access-revoked", ({ boardId, userId: targetUserId }) => {
+      io!.to(boardId).to(`board:${boardId}`).emit("access-revoked", { userId: targetUserId });
+    });
+
+    socket.on("access-changed", ({ boardId, userId: targetUserId, role }) => {
+      io!.to(boardId).to(`board:${boardId}`).emit("access-changed", { userId: targetUserId, role });
+    });
+
     socket.on("disconnect", (reason) => {
       console.log(`[socket] client disconnected: ${socket.id} (${reason})`);
       if (currentRoom) {
