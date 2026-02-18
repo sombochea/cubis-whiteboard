@@ -2,11 +2,22 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 
-export default function PublicBoard({ title, data: raw }: { title: string; data: any }) {
+interface Props {
+  whiteboardId: string;
+  title: string;
+  data: any;
+  isLoggedIn: boolean;
+  requestStatus: "none" | "pending" | "denied" | null;
+}
+
+export default function PublicBoard({ whiteboardId, title, data: raw, isLoggedIn, requestStatus: initialStatus }: Props) {
   const [Exc, setExc] = useState<any>(null);
+  const [reqStatus, setReqStatus] = useState(initialStatus);
 
   useEffect(() => {
+    // @ts-expect-error -- CSS module loaded at runtime
     import("@excalidraw/excalidraw/index.css");
     import("@excalidraw/excalidraw").then((m) => setExc(() => m.Excalidraw));
   }, []);
@@ -16,6 +27,17 @@ export default function PublicBoard({ title, data: raw }: { title: string; data:
     appState: { ...(raw?.appState || {}), viewBackgroundColor: "#ffffff", collaborators: new Map() },
     files: raw?.files ? Object.values(raw.files) : [],
   }), [raw]);
+
+  const requestAccess = async () => {
+    const res = await fetch(`/api/whiteboards/${whiteboardId}/access-requests`, { method: "POST" });
+    if (res.ok || res.status === 200) {
+      setReqStatus("pending");
+      toast.success("Request sent! The owner will review it.");
+    } else {
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error || "Failed to send request");
+    }
+  };
 
   if (!Exc) return (
     <div className="flex h-screen items-center justify-center" style={{ background: "#fafaf8" }}>
@@ -37,9 +59,27 @@ export default function PublicBoard({ title, data: raw }: { title: string; data:
             <span className="text-xs font-semibold text-[var(--foreground)] truncate">{title}</span>
             <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 shrink-0">Public</span>
           </div>
-          <Link href="/login" className="pointer-events-auto shrink-0 rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg px-3 py-1.5 text-xs font-medium text-[var(--foreground)] shadow-sm transition-colors hover:bg-[var(--muted)]">
-            Sign in to edit
-          </Link>
+
+          {!isLoggedIn ? (
+            <Link href="/login" className="pointer-events-auto shrink-0 rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg px-3 py-1.5 text-xs font-medium text-[var(--foreground)] shadow-sm transition-colors hover:bg-[var(--muted)]">
+              Sign in to edit
+            </Link>
+          ) : reqStatus === "pending" ? (
+            <div className="pointer-events-auto shrink-0 rounded-xl border border-amber-200 bg-amber-50/90 backdrop-blur-lg px-3 py-1.5 text-xs font-medium text-amber-700 shadow-sm">
+              Request pending
+            </div>
+          ) : reqStatus === "denied" ? (
+            <div className="pointer-events-auto shrink-0 rounded-xl border border-red-200 bg-red-50/90 backdrop-blur-lg px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm">
+              Request denied
+            </div>
+          ) : (
+            <button
+              onClick={requestAccess}
+              className="pointer-events-auto shrink-0 rounded-xl border border-[var(--border)] bg-[var(--primary)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-[0.98]"
+            >
+              Request edit access
+            </button>
+          )}
         </div>
       </div>
     </div>

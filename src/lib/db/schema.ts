@@ -162,3 +162,25 @@ export const file = pgTable("file", {
   }),
   ...timestamps,
 });
+
+// ── Access Requests ─────────────────────────────────────────────────
+export const accessRequest = pgTable(
+  "access_request",
+  {
+    id: id(),
+    whiteboardId: text("whiteboard_id")
+      .notNull()
+      .references(() => whiteboard.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    status: text("status", { enum: ["pending", "approved", "denied"] })
+      .notNull()
+      .default("pending"),
+    ...timestamps,
+  },
+  (t) => [
+    index("ar_wb_idx").on(t.whiteboardId),
+    index("ar_user_idx").on(t.userId),
+  ]
+);
