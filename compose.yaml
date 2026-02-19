@@ -1,5 +1,6 @@
 services:
   migrate:
+    image: ${COMPOSE_PROJECT_NAME:-whiteboard}-app:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -14,6 +15,7 @@ services:
     restart: "no"
 
   app:
+    image: ${COMPOSE_PROJECT_NAME:-whiteboard}-app:latest
     build:
       context: .
       dockerfile: Dockerfile
