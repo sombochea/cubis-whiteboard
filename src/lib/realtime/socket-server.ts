@@ -1,17 +1,31 @@
 import { Server as SocketIOServer } from "socket.io";
 import type { Server as HTTPServer } from "http";
+import {
+  addRoomUser,
+  removeRoomUser,
+  getRoomUsers,
+  getRoomSize,
+  clearRoom,
+} from "./redis";
 
 let io: SocketIOServer | null = null;
 
-const roomUsers = new Map<
-  string,
-  Map<string, { userId: string; name: string; color: string }>
->();
+// Lightweight in-process map for cursor metadata (not shared state — no need for Redis)
+const socketMeta = new Map<string, { userId: string; name: string; color: string }>();
 
 const COLORS = [
   "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7",
   "#DDA0DD", "#98D8C8", "#F7DC6F", "#BB8FCE", "#85C1E9",
 ];
+
+/** Broadcast room-users list only when there are active members. */
+async function broadcastRoomUsers(roomId: string) {
+  if (!io) return;
+  const users = await getRoomUsers(roomId);
+  if (users.length > 0) {
+    io.to(roomId).emit("room-users", users);
+  }
+}
 
 export function getIO(httpServer: HTTPServer): SocketIOServer {
   if (io) return io;
@@ -28,27 +42,28 @@ export function getIO(httpServer: HTTPServer): SocketIOServer {
     console.log(`[socket] client connected: ${socket.id}`);
     let currentRoom: string | null = null;
 
-    socket.on("join-room", ({ roomId, userId, name }) => {
+    socket.on("join-room", async ({ roomId, userId, name }) => {
       currentRoom = roomId;
       socket.join(roomId);
 
-      if (!roomUsers.has(roomId)) roomUsers.set(roomId, new Map());
-      const users = roomUsers.get(roomId)!;
-      const color = COLORS[users.size % COLORS.length];
-      users.set(socket.id, { userId, name, color });
+      const size = await getRoomSize(roomId);
+      const color = COLORS[size % COLORS.length];
+      const userMeta = { userId, name, color };
+      socketMeta.set(socket.id, userMeta);
+      await addRoomUser(roomId, socket.id, userMeta);
 
-      io!.to(roomId).emit("room-users", Array.from(users.values()));
+      await broadcastRoomUsers(roomId);
 
-      // Notify existing peers so they can initiate WebRTC offers
+      // Notify existing peers for WebRTC
       socket.to(roomId).emit("peer-joined", { socketId: socket.id, userId, name });
-      // Tell the new peer about everyone already in the room
-      for (const [sid, u] of users) {
-        if (sid !== socket.id) {
-          socket.emit("peer-joined", { socketId: sid, userId: u.userId, name: u.name });
+      // Tell the new peer about everyone already in the room (excluding self)
+      for (const [sid, meta] of socketMeta) {
+        if (sid !== socket.id && io!.sockets.adapter.rooms.get(roomId)?.has(sid)) {
+          socket.emit("peer-joined", { socketId: sid, userId: meta.userId, name: meta.name });
         }
       }
 
-      console.log(`[socket] ${name} joined ${roomId} (${users.size} users)`);
+      console.log(`[socket] ${name} joined ${roomId} (${io!.sockets.adapter.rooms.get(roomId)?.size ?? 1} users)`);
     });
 
     // ── WebRTC signaling ──
@@ -56,24 +71,30 @@ export function getIO(httpServer: HTTPServer): SocketIOServer {
       io!.to(to).emit("rtc-signal", { from: socket.id, signal });
     });
 
-    socket.on("drawing-update", ({ roomId, elements }) => {
-      socket.to(roomId).emit("drawing-update", { elements });
+    socket.on("drawing-update", async ({ roomId, elements }) => {
+      const room = io!.sockets.adapter.rooms.get(roomId);
+      if (room && room.size > 1) {
+        socket.to(roomId).emit("drawing-update", { elements });
+      }
     });
 
-    socket.on("files-update", ({ roomId, files }) => {
-      socket.to(roomId).emit("files-update", { files });
+    socket.on("files-update", async ({ roomId, files }) => {
+      const room = io!.sockets.adapter.rooms.get(roomId);
+      if (room && room.size > 1) {
+        socket.to(roomId).emit("files-update", { files });
+      }
     });
 
     socket.on("cursor-move", ({ roomId, cursor }) => {
-      const users = roomUsers.get(roomId);
-      const user = users?.get(socket.id);
-      if (user) {
+      const room = io!.sockets.adapter.rooms.get(roomId);
+      if (room && room.size > 1) {
+        const meta = socketMeta.get(socket.id);
         socket.volatile.to(roomId).emit("cursor-move", {
           x: cursor.x,
           y: cursor.y,
           tool: cursor.tool || "pointer",
           button: cursor.button || "up",
-          ...user,
+          ...(meta ?? {}),
         });
       }
     });
@@ -99,19 +120,17 @@ export function getIO(httpServer: HTTPServer): SocketIOServer {
       io!.to(boardId).to(`board:${boardId}`).emit("access-changed", { userId: targetUserId, role });
     });
 
-    socket.on("disconnect", (reason) => {
+    socket.on("disconnect", async (reason) => {
       console.log(`[socket] client disconnected: ${socket.id} (${reason})`);
+      socketMeta.delete(socket.id);
       if (currentRoom) {
-        const users = roomUsers.get(currentRoom);
-        if (users) {
-          users.delete(socket.id);
-          if (users.size === 0) {
-            roomUsers.delete(currentRoom);
-          } else {
-            io!.to(currentRoom).emit("room-users", Array.from(users.values()));
-            // Let peers clean up their RTCPeerConnection
-            io!.to(currentRoom).emit("peer-left", { socketId: socket.id });
-          }
+        await removeRoomUser(currentRoom, socket.id);
+        const remaining = await getRoomSize(currentRoom);
+        if (remaining === 0) {
+          await clearRoom(currentRoom);
+        } else {
+          await broadcastRoomUsers(currentRoom);
+          io!.to(currentRoom).emit("peer-left", { socketId: socket.id });
         }
       }
     });

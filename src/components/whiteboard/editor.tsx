@@ -311,24 +311,30 @@ export default function WhiteboardEditor({
   const changeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latestChange = useRef<{ elements: readonly unknown[]; appState: unknown; files: Record<string, BinaryFileData> } | null>(null);
 
+  const roomUsersRef = useRef(roomUsers);
+  useEffect(() => { roomUsersRef.current = roomUsers; }, [roomUsers]);
+
+  const hasCollaborators = useCallback(() =>
+    roomUsersRef.current.some((u) => u.userId !== userId), [userId]);
+
   const processChange = useCallback(() => {
     const c = latestChange.current;
     if (!c) return;
     latestChange.current = null;
 
-    // Emit elements over socket
-    rt.emitDrawingUpdate(c.elements as unknown[]);
+    // Only emit realtime updates when others are in the room
+    if (hasCollaborators()) {
+      rt.emitDrawingUpdate(c.elements as unknown[]);
 
-    // Only emit files when new ones are added
-    const fileKeys = Object.keys(c.files || {}).sort().join(",");
-    if (fileKeys !== lastFileKeysRef.current) {
-      lastFileKeysRef.current = fileKeys;
-      rt.emitFiles(c.files || {});
+      const fileKeys = Object.keys(c.files || {}).sort().join(",");
+      if (fileKeys !== lastFileKeysRef.current) {
+        lastFileKeysRef.current = fileKeys;
+        rt.emitFiles(c.files || {});
+      }
     }
 
-    // Persist
     saveScene(c.elements as unknown[], c.appState, c.files);
-  }, [rt, saveScene]);
+  }, [rt, saveScene, hasCollaborators]);
 
   const handleChange = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -350,6 +356,7 @@ export default function WhiteboardEditor({
   const handlePointerUpdate = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (payload: any) => {
+      if (!hasCollaborators()) return;
       rt.emitCursorMove({
         x: payload.pointer.x,
         y: payload.pointer.y,
@@ -357,7 +364,7 @@ export default function WhiteboardEditor({
         button: payload.button,
       });
     },
-    [rt]
+    [rt, hasCollaborators]
   );
 
   // ── Library change: save locally immediately, debounce server sync ──
