@@ -31,6 +31,8 @@ COPY --from=builder --chown=appuser:appgroup /app/.next/standalone ./
 COPY --from=builder --chown=appuser:appgroup /app/.next/static ./.next/static
 COPY --from=builder --chown=appuser:appgroup /app/public ./public
 COPY --from=builder --chown=appuser:appgroup /app/server.ts ./server.ts
+COPY --from=builder --chown=appuser:appgroup /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder --chown=appuser:appgroup /app/drizzle ./drizzle
 COPY --from=builder --chown=appuser:appgroup /app/src/lib/realtime ./src/lib/realtime
 COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
 COPY --from=builder --chown=appuser:appgroup /app/package.json ./package.json
