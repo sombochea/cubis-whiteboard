@@ -1,4 +1,5 @@
 import { Server as SocketIOServer } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
 import type { Server as HTTPServer } from "http";
 import {
   addRoomUser,
@@ -6,6 +7,7 @@ import {
   getRoomUsers,
   getRoomSize,
   clearRoom,
+  getPubSubClients,
 } from "./redis";
 
 let io: SocketIOServer | null = null;
@@ -37,6 +39,10 @@ export function getIO(httpServer: HTTPServer): SocketIOServer {
     maxHttpBufferSize: 5e6,
     transports: ["polling", "websocket"],
   });
+
+  const { pub, sub } = getPubSubClients();
+  io.adapter(createAdapter(pub, sub));
+  console.log("[socket] Redis adapter attached");
 
   io.on("connection", (socket) => {
     console.log(`[socket] client connected: ${socket.id}`);

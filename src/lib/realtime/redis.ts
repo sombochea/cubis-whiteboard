@@ -1,16 +1,31 @@
 import Redis from "ioredis";
 
+const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+const REDIS_OPTS = { lazyConnect: true, maxRetriesPerRequest: 1 } as const;
+
 let client: Redis | null = null;
+let pub: Redis | null = null;
+let sub: Redis | null = null;
 
 export function getRedis(): Redis {
   if (!client) {
-    client = new Redis(process.env.REDIS_URL || "redis://localhost:6379", {
-      lazyConnect: true,
-      maxRetriesPerRequest: 1,
-    });
+    client = new Redis(REDIS_URL, REDIS_OPTS);
     client.on("error", (err) => console.error("[redis]", err.message));
   }
   return client;
+}
+
+/** Dedicated pub/sub clients for the Socket.IO Redis adapter. */
+export function getPubSubClients(): { pub: Redis; sub: Redis } {
+  if (!pub) {
+    pub = new Redis(REDIS_URL, REDIS_OPTS);
+    pub.on("error", (err) => console.error("[redis:pub]", err.message));
+  }
+  if (!sub) {
+    sub = pub.duplicate();
+    sub.on("error", (err) => console.error("[redis:sub]", err.message));
+  }
+  return { pub, sub };
 }
 
 const ROOM_KEY = (roomId: string) => `room:${roomId}`;
