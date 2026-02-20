@@ -98,15 +98,22 @@ export default function DashboardView({ userId, userName, userEmail, userImage }
     return () => clearTimeout(t);
   }, [search, fetchData]);
 
+  const creatingRef = useRef(false);
   const createWhiteboard = async (title = "Untitled", data?: object) => {
-    const res = await fetch("/api/whiteboards", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, ...(data && { data }) }),
-    });
-    if (res.ok) {
-      const wb = await res.json();
-      startTransition(() => router.push(`/w/${wb.id}`));
+    if (creatingRef.current) return;
+    creatingRef.current = true;
+    try {
+      const res = await fetch("/api/whiteboards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, ...(data && { data }) }),
+      });
+      if (res.ok) {
+        const wb = await res.json();
+        startTransition(() => router.push(`/w/${wb.id}`));
+      }
+    } finally {
+      creatingRef.current = false;
     }
   };
 
