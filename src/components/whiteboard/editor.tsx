@@ -388,6 +388,32 @@ export default function WhiteboardEditor({
   );
   useEffect(() => () => clearTimeout(libSaveTimer.current), []);
 
+  // ── Import from .excalidraw file ──
+  const importFileRef = useRef<HTMLInputElement>(null);
+
+  const handleImportFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    try {
+      const { loadFromBlob } = await import("@excalidraw/excalidraw");
+      const api = excalidrawRef.current;
+      const appState = api?.getAppState() ?? {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const scene = await loadFromBlob(file, appState as any, api?.getSceneElements() ?? []);
+      api?.updateScene({ elements: scene.elements, appState: scene.appState });
+      if (scene.files) api?.addFiles(Object.values(scene.files) as any);
+      toast.success("Imported successfully");
+    } catch {
+      toast.error("Failed to import file");
+    }
+  }, []);
+
+  // Keep Excalidraw's internal name in sync with title (affects export filename)
+  useEffect(() => {
+    excalidrawRef.current?.updateScene({ appState: { name: title } });
+  }, [title]);
+
   const handleTitleSave = async () => {
     setIsEditingTitle(false);
     if (!navigator.onLine) { toast.info("Title will sync when back online"); return; }
@@ -409,6 +435,7 @@ export default function WhiteboardEditor({
     elements: (resolvedData?.elements as any) || [],
     appState: {
       ...(resolvedData?.appState || {}),
+      name: title,
       collaborators: new Map(),
     },
     files: resolvedData?.files ? Object.values(resolvedData.files) : [],
@@ -456,6 +483,13 @@ export default function WhiteboardEditor({
 
   return (
     <div className="relative h-screen w-screen overflow-hidden">
+      <input
+        ref={importFileRef}
+        type="file"
+        accept=".excalidraw"
+        className="hidden"
+        onChange={handleImportFile}
+      />
       {/* ── Full-bleed canvas ── */}
       <div className="absolute inset-0">
         <ExcalidrawComp
@@ -565,6 +599,26 @@ export default function WhiteboardEditor({
                 ownerEmail={userEmail}
               />
             )}
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => importFileRef.current?.click()}
+                    className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="rounded-lg bg-[var(--foreground)] px-2.5 py-1 text-[11px] text-[var(--background)]">
+                  Import .excalidraw file
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
 
             <Link
               href="/whiteboards"

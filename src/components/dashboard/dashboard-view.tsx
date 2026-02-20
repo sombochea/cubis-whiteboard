@@ -98,11 +98,11 @@ export default function DashboardView({ userId, userName, userEmail, userImage }
     return () => clearTimeout(t);
   }, [search, fetchData]);
 
-  const createWhiteboard = async () => {
+  const createWhiteboard = async (title = "Untitled", data?: object) => {
     const res = await fetch("/api/whiteboards", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: "Untitled" }),
+      body: JSON.stringify({ title, ...(data && { data }) }),
     });
     if (res.ok) {
       const wb = await res.json();
@@ -144,6 +144,22 @@ export default function DashboardView({ userId, userName, userEmail, userImage }
     setDraggedWb(null);
     fetchData(search);
     toast.success("Added to collection");
+  };
+
+  const [dragOverNew, setDragOverNew] = useState(false);
+
+  const handleDropOnNew = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverNew(false);
+    const file = Array.from(e.dataTransfer.files).find((f) => f.name.endsWith(".excalidraw"));
+    if (!file) return;
+    try {
+      const json = JSON.parse(await file.text());
+      const title = json.name || file.name.replace(/\.excalidraw$/, "") || "Untitled";
+      await createWhiteboard(title, { elements: json.elements || [], appState: json.appState || {}, files: json.files || {} });
+    } catch {
+      toast.error("Failed to import file");
+    }
   };
 
   const handleSignOut = async () => {
@@ -294,18 +310,24 @@ export default function DashboardView({ userId, userName, userEmail, userImage }
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {/* New board placeholder */}
               <button
-                onClick={createWhiteboard}
+                onClick={() => createWhiteboard()}
                 disabled={isPending}
-                className="group flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[var(--border)] bg-transparent py-16 transition-all hover:border-[var(--primary)]/50 hover:bg-[var(--primary)]/[0.03] active:scale-[0.98]"
+                onDragOver={(e) => { e.preventDefault(); setDragOverNew(true); }}
+                onDragLeave={() => setDragOverNew(false)}
+                onDrop={handleDropOnNew}
+                className={`group flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed bg-transparent py-16 transition-all active:scale-[0.98] ${dragOverNew ? "border-[var(--primary)] bg-[var(--primary)]/[0.06]" : "border-[var(--border)] hover:border-[var(--primary)]/50 hover:bg-[var(--primary)]/[0.03]"}`}
               >
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)] transition-transform group-hover:scale-110">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
                 </div>
-                <span className="text-sm font-medium text-[var(--muted-foreground)] group-hover:text-[var(--foreground)]">
-                  {isPending ? "Creating…" : "New board"}
-                </span>
+                <div className="text-center">
+                  <span className="block text-sm font-medium text-[var(--muted-foreground)] group-hover:text-[var(--foreground)]">
+                    {isPending ? "Creating…" : dragOverNew ? "Drop to import" : "New board"}
+                  </span>
+                  {!dragOverNew && <span className="text-[11px] text-[var(--muted-foreground)]/60">or drop .excalidraw file</span>}
+                </div>
               </button>
 
               {whiteboards.map((wb) => (
