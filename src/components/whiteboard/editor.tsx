@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import {
@@ -51,6 +52,7 @@ export default function WhiteboardEditor({
   isPublicInitial = false,
   serverUpdatedAt = 0,
 }: WhiteboardEditorProps) {
+  const router = useRouter();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ExcalidrawComp, setExcalidrawComp] = useState<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -196,26 +198,26 @@ export default function WhiteboardEditor({
   }, [rt, excalidrawUtils, userId]);
 
   // ── Realtime access control ──
+  const accessHandledRef = useRef(false);
   useEffect(() => {
     rt.onAccessRevoked(({ userId: targetId }) => {
-      if (targetId === userId) {
-        toast.error("Your access has been revoked");
-        window.location.href = "/w";
-      }
+      if (targetId !== userId) return;
+      toast.error("Your access has been revoked");
+      window.location.href = "/w";
     });
 
     rt.onAccessChanged(({ userId: targetId, role }) => {
-      if (targetId === userId) {
-        if (role === "viewer") {
-          toast("Your access has been changed to view-only");
-          window.location.href = `/s/${whiteboardId}`;
-        } else if (role === "editor") {
-          toast.success("You now have editor access");
-          window.location.reload();
-        }
+      if (targetId !== userId || accessHandledRef.current) return;
+      accessHandledRef.current = true;
+      if (role === "viewer") {
+        toast("Your access has been changed to view-only");
+        window.location.href = `/s/${whiteboardId}`;
+      } else if (role === "editor") {
+        toast.success("You now have editor access");
+        router.refresh();
       }
     });
-  }, [rt, userId, whiteboardId]);
+  }, [rt, userId, whiteboardId, router]);
 
   // ── Persistence ──
   const serverSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);

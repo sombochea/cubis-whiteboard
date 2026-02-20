@@ -49,12 +49,8 @@ export default async function WhiteboardPage({
   // No access at all
   if (!role) notFound();
 
-  // Viewers can't use the editor — send them to the share page if public,
-  // otherwise deny access
-  if (role === "viewer") {
-    if (wb.isPublic) redirect(`/s/${id}`);
-    notFound();
-  }
+  // Viewers can't use the editor — deny access
+  if (role === "viewer") notFound();
 
   return (
     <WhiteboardEditor
