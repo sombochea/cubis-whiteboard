@@ -697,7 +697,7 @@ export default function WhiteboardEditor({
                                         <circle cx="11" cy="11" r="2" />
                                     </svg>
                                     <span className="ml-2 font-bold">
-                                        Cubis Whiteboard
+                                        Cubis eBoard
                                     </span>
                                 </WelcomeScreenComp.Center.Logo>
                                 <WelcomeScreenComp.Center.Heading>

@@ -51,7 +51,7 @@ export default function LoginPage() {
             Welcome back
           </h1>
           <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-            Sign in to your Cubis Whiteboard
+            Sign in to your Cubis eBoard
           </p>
         </div>
 

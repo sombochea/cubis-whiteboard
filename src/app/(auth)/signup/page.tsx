@@ -46,7 +46,7 @@ export default function SignupPage() {
             Create your account
           </h1>
           <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-            Start collaborating on Cubis Whiteboard
+            Start collaborating on Cubis eBoard
           </p>
         </div>
 

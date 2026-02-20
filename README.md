@@ -1,4 +1,4 @@
-# Cubis Whiteboard
+# Cubis Whiteboard (eBoard)
 
 A collaborative whiteboard application built with Excalidraw, Next.js 16+, and real-time collaboration.
 
