@@ -203,13 +203,13 @@ export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic, ow
               <div className="flex gap-1.5">
                 <input
                   readOnly
-                  value={`${typeof window !== "undefined" ? window.location.origin : ""}/share/${whiteboardId}`}
+                  value={`${typeof window !== "undefined" ? window.location.origin : ""}/s/${whiteboardId}`}
                   className="h-8 flex-1 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 text-xs text-[var(--muted-foreground)] select-all"
                   onFocus={(e) => e.target.select()}
                 />
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/share/${whiteboardId}`);
+                    navigator.clipboard.writeText(`${window.location.origin}/s/${whiteboardId}`);
                     toast.success("Link copied");
                   }}
                   className="h-8 shrink-0 rounded-lg border border-[var(--border)] px-2.5 text-xs font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--background)]"
