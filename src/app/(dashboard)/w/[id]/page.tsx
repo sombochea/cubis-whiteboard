@@ -42,7 +42,7 @@ export default async function WhiteboardPage({
       role = collab.role as "editor" | "viewer";
     } else if (wb.isPublic) {
       // Public board, no collaborator record → view-only via share page
-      redirect(`/share/${id}`);
+      redirect(`/s/${id}`);
     }
   }
 
@@ -52,7 +52,7 @@ export default async function WhiteboardPage({
   // Viewers can't use the editor — send them to the share page if public,
   // otherwise deny access
   if (role === "viewer") {
-    if (wb.isPublic) redirect(`/share/${id}`);
+    if (wb.isPublic) redirect(`/s/${id}`);
     notFound();
   }
 

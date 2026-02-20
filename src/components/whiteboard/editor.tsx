@@ -200,7 +200,7 @@ export default function WhiteboardEditor({
     rt.onAccessRevoked(({ userId: targetId }) => {
       if (targetId === userId) {
         toast.error("Your access has been revoked");
-        window.location.href = "/whiteboards";
+        window.location.href = "/w";
       }
     });
 
@@ -208,7 +208,7 @@ export default function WhiteboardEditor({
       if (targetId === userId) {
         if (role === "viewer") {
           toast("Your access has been changed to view-only");
-          window.location.href = `/share/${whiteboardId}`;
+          window.location.href = `/s/${whiteboardId}`;
         } else if (role === "editor") {
           toast.success("You now have editor access");
           window.location.reload();
@@ -512,7 +512,7 @@ export default function WhiteboardEditor({
           {/* ── Breadcrumb / Title pill ── */}
           <div className="pointer-events-auto flex items-center gap-0.5 rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg px-1 py-1 shadow-sm min-w-0 shrink">
             <Link
-              href="/whiteboards"
+              href="/w"
               className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] shrink-0"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -621,7 +621,7 @@ export default function WhiteboardEditor({
             </TooltipProvider>
 
             <Link
-              href="/whiteboards"
+              href="/w"
               className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

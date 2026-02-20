@@ -24,7 +24,7 @@ export default async function PublicWhiteboardPage({
     userId = session.user.id;
     userName = session.user.name;
     userEmail = session.user.email;
-    if (wb.ownerId === session.user.id) redirect(`/whiteboards/${id}`);
+    if (wb.ownerId === session.user.id) redirect(`/w/${id}`);
 
     const [collab] = await db
       .select({ role: collaborator.role })
@@ -32,7 +32,7 @@ export default async function PublicWhiteboardPage({
       .where(and(eq(collaborator.whiteboardId, id), eq(collaborator.userId, session.user.id)))
       .limit(1);
 
-    if (collab?.role === "editor") redirect(`/whiteboards/${id}`);
+    if (collab?.role === "editor") redirect(`/w/${id}`);
 
     // Check if they already have a pending/denied request
     const [ar] = await db

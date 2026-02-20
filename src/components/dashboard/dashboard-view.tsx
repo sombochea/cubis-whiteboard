@@ -106,7 +106,7 @@ export default function DashboardView({ userId, userName, userEmail, userImage }
     });
     if (res.ok) {
       const wb = await res.json();
-      startTransition(() => router.push(`/whiteboards/${wb.id}`));
+      startTransition(() => router.push(`/w/${wb.id}`));
     }
   };
 
@@ -337,7 +337,7 @@ export default function DashboardView({ userId, userName, userEmail, userImage }
                   draggable
                   onDragStart={() => setDraggedWb(wb.id)}
                   onDragEnd={() => setDraggedWb(null)}
-                  onClick={() => startTransition(() => router.push(`/whiteboards/${wb.id}`))}
+                  onClick={() => startTransition(() => router.push(`/w/${wb.id}`))}
                 >
                   {/* Thumbnail or dot grid */}
                   <div className="relative h-36 bg-[var(--muted)] overflow-hidden">

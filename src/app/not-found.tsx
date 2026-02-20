@@ -16,7 +16,7 @@ export default function NotFound() {
           The page you're looking for doesn't exist or has been removed.
         </p>
         <Link
-          href="/whiteboards"
+          href="/w"
           className="mt-6 inline-flex h-10 items-center rounded-xl bg-[var(--primary)] px-5 text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
         >
           Go to dashboard

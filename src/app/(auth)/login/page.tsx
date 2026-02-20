@@ -20,12 +20,12 @@ export default function LoginPage() {
     if (error) {
       toast.error(error.message || "Login failed");
     } else {
-      router.push("/whiteboards");
+      router.push("/w");
     }
   };
 
   const handleZitadel = async () => {
-    await signIn.oauth2({ providerId: "sso", callbackURL: "/whiteboards" });
+    await signIn.oauth2({ providerId: "sso", callbackURL: "/w" });
   };
 
   return (

@@ -44,7 +44,7 @@ export default function PublicBoard({ whiteboardId, title, data: raw, isLoggedIn
       if (targetId !== userId) return;
       if (action === "approved") {
         toast.success("Access granted! Redirecting…");
-        setTimeout(() => router.push(`/whiteboards/${whiteboardId}`), 1000);
+        setTimeout(() => router.push(`/w/${whiteboardId}`), 1000);
       } else {
         setReqStatus("denied");
         toast.error("Your request was denied");
@@ -55,7 +55,7 @@ export default function PublicBoard({ whiteboardId, title, data: raw, isLoggedIn
       if (targetId !== userId) return;
       if (role === "editor") {
         toast.success("You now have editor access! Redirecting…");
-        setTimeout(() => router.push(`/whiteboards/${whiteboardId}`), 1000);
+        setTimeout(() => router.push(`/w/${whiteboardId}`), 1000);
       }
     });
 
@@ -119,7 +119,7 @@ export default function PublicBoard({ whiteboardId, title, data: raw, isLoggedIn
             </div>
           ) : reqStatus === "pending" ? (
             <div className="pointer-events-auto flex items-center gap-1.5">
-              <Link href="/whiteboards" className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)]">
+              <Link href="/w" className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)]">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
               </Link>
               <div className="shrink-0 rounded-xl border border-amber-200 bg-amber-50/90 backdrop-blur-lg px-3 py-1.5 text-xs font-medium text-amber-700 shadow-sm">
@@ -128,7 +128,7 @@ export default function PublicBoard({ whiteboardId, title, data: raw, isLoggedIn
             </div>
           ) : reqStatus === "denied" ? (
             <div className="pointer-events-auto flex items-center gap-1.5">
-              <Link href="/whiteboards" className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)]">
+              <Link href="/w" className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)]">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
               </Link>
               <button
@@ -141,7 +141,7 @@ export default function PublicBoard({ whiteboardId, title, data: raw, isLoggedIn
             </div>
           ) : (
             <div className="pointer-events-auto flex items-center gap-1.5">
-              <Link href="/whiteboards" className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)]">
+              <Link href="/w" className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)]">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
               </Link>
               <button

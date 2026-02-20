@@ -21,7 +21,7 @@ export default function SignupPage() {
     if (error) {
       toast.error(error.message || "Signup failed");
     } else {
-      router.push("/whiteboards");
+      router.push("/w");
     }
   };
 

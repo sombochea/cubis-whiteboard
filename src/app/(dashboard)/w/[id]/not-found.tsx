@@ -15,7 +15,7 @@ export default function WhiteboardNotFound() {
           This whiteboard doesn't exist or you don't have permission to view it. Ask the owner to share it with you.
         </p>
         <Link
-          href="/whiteboards"
+          href="/w"
           className="mt-6 inline-flex h-10 items-center rounded-xl bg-[var(--primary)] px-5 text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
         >
           Go to dashboard

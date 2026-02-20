@@ -58,7 +58,7 @@ export default function CollectionView({ collection: col, whiteboards }: Props) 
       <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--card)]/80 backdrop-blur-lg">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-6">
           <Link
-            href="/whiteboards"
+            href="/w"
             className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -118,7 +118,7 @@ export default function CollectionView({ collection: col, whiteboards }: Props) 
       <main className="mx-auto max-w-6xl px-6 py-8">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {whiteboards.map((wb) => (
-            <Link key={wb.id} href={`/whiteboards/${wb.id}`}>
+            <Link key={wb.id} href={`/w/${wb.id}`}>
               <div className="group overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] transition-all hover:border-[var(--primary)]/30 hover:shadow-lg hover:shadow-[var(--primary)]/5">
                 <div className="relative h-36 bg-[var(--muted)] overflow-hidden">
                   {wb.thumbnail ? (
