@@ -4,15 +4,8 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRealtime } from '@/hooks/use-realtime';
 import { useOnlineStatus } from '@/hooks/use-online-status';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import ShareDialog from './share-dialog';
 import { toast } from 'sonner';
-import Link from 'next/link';
 import {
     saveToLocal,
     loadFromLocal,
@@ -24,7 +17,6 @@ import {
     loadLibraryLocal,
 } from '@/lib/local-store';
 import '@excalidraw/excalidraw/index.css';
-import Image from 'next/image';
 
 interface BinaryFileData {
     id: string;
@@ -91,6 +83,11 @@ export default function WhiteboardEditor({
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [WelcomeScreenComp, setWelcomeScreenComp] = useState<any>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [MainMenuComp, setMainMenuComp] = useState<any>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [LiveCollabTrigger, setLiveCollabTrigger] = useState<any>(null);
+    const [shareOpen, setShareOpen] = useState(false);
 
     // Load Excalidraw
     useEffect(() => {
@@ -98,6 +95,10 @@ export default function WhiteboardEditor({
             setExcalidrawComp(() => mod.Excalidraw);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             setWelcomeScreenComp(() => (mod as any).WelcomeScreen);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            setMainMenuComp(() => (mod as any).MainMenu);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            setLiveCollabTrigger(() => (mod as any).LiveCollaborationTrigger);
             setExcalidrawUtils({
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 reconcileElements: (mod as any).reconcileElements,
@@ -587,6 +588,7 @@ export default function WhiteboardEditor({
             files: resolvedData?.files ? Object.values(resolvedData.files) : [],
             libraryItems,
         }),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         [resolvedData, libraryItems],
     );
 
@@ -639,18 +641,22 @@ export default function WhiteboardEditor({
         );
     }
 
-    const allUsers = [
-        {
-            userId,
-            name: userName,
-            color: '#6965db',
-            image: userImage,
-            isSelf: true,
-        },
-        ...roomUsers
-            .filter((u) => u.userId !== userId)
-            .map((u) => ({ ...u, image: null, isSelf: false })),
-    ];
+    const importIcon = (
+        <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+        </svg>
+    );
 
     return (
         <div className="relative h-screen w-screen overflow-hidden">
@@ -661,7 +667,18 @@ export default function WhiteboardEditor({
                 className="hidden"
                 onChange={handleImportFile}
             />
-            {/* ── Full-bleed canvas ── */}
+
+            {isOwner && (
+                <ShareDialog
+                    whiteboardId={whiteboardId}
+                    isPublic={isPublic}
+                    onTogglePublic={setIsPublic}
+                    ownerEmail={userEmail}
+                    open={shareOpen}
+                    onOpenChange={setShareOpen}
+                />
+            )}
+
             <div className="absolute inset-0">
                 <ExcalidrawComp
                     excalidrawAPI={(api: any) => {
@@ -676,30 +693,121 @@ export default function WhiteboardEditor({
                         `${whiteboardId}_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
                     }
                     UIOptions={{ canvasActions: { loadScene: false } }}
+                    renderTopRightUI={() =>
+                        LiveCollabTrigger ? (
+                            <LiveCollabTrigger
+                                isCollaborating={roomUsers.length > 1}
+                                onSelect={() => isOwner && setShareOpen(true)}
+                            />
+                        ) : null
+                    }
                 >
+                    {/* ── MainMenu ── */}
+                    {MainMenuComp && (
+                        <MainMenuComp>
+                            {/* Board */}
+                            <MainMenuComp.Group title="Board">
+                                <MainMenuComp.ItemCustom>
+                                    <div className="px-1 py-1">
+                                        {isEditingTitle ? (
+                                            <input
+                                                ref={titleInputRef}
+                                                value={title}
+                                                onChange={(e) =>
+                                                    setTitle(e.target.value)
+                                                }
+                                                onBlur={handleTitleSave}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter')
+                                                        handleTitleSave();
+                                                    if (e.key === 'Escape') {
+                                                        setTitle(initialTitle);
+                                                        setIsEditingTitle(
+                                                            false,
+                                                        );
+                                                    }
+                                                }}
+                                                className="w-full rounded-md border border-[#6965db]/40 bg-transparent px-2 py-1 text-[13px] font-medium outline-none ring-2 ring-[#6965db]/20 focus:ring-[#6965db]/40 dark:text-white"
+                                                autoFocus
+                                            />
+                                        ) : (
+                                            <button
+                                                onClick={startEditingTitle}
+                                                className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-[13px] font-medium transition-colors hover:bg-[var(--island-bg-color,#f0f0f0)]"
+                                            >
+                                                <svg
+                                                    width="14"
+                                                    height="14"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="2"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    className="shrink-0 opacity-40"
+                                                >
+                                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                                </svg>
+                                                <span className="truncate">
+                                                    {title}
+                                                </span>
+                                            </button>
+                                        )}
+                                    </div>
+                                </MainMenuComp.ItemCustom>
+                                <MainMenuComp.ItemLink
+                                    onSelect={() => router.push('/w')}
+                                    icon={
+                                        <svg
+                                            width="16"
+                                            height="16"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                                            <polyline points="9 22 9 12 15 12 15 22" />
+                                        </svg>
+                                    }
+                                >
+                                    All boards
+                                </MainMenuComp.ItemLink>
+                            </MainMenuComp.Group>
+                            <MainMenuComp.Separator />
+
+                            {/* File */}
+                            <MainMenuComp.Group title="File">
+                                <MainMenuComp.Item
+                                    onSelect={() =>
+                                        importFileRef.current?.click()
+                                    }
+                                    icon={importIcon}
+                                >
+                                    Import
+                                </MainMenuComp.Item>
+                                <MainMenuComp.DefaultItems.SaveAsImage />
+                                <MainMenuComp.DefaultItems.Export />
+                                <MainMenuComp.DefaultItems.Help />
+                            </MainMenuComp.Group>
+                            <MainMenuComp.Separator />
+
+                            {/* Appearance */}
+                            <MainMenuComp.Group title="Appearance">
+                                <MainMenuComp.DefaultItems.ToggleTheme />
+                                <MainMenuComp.DefaultItems.ChangeCanvasBackground />
+                            </MainMenuComp.Group>
+                        </MainMenuComp>
+                    )}
+
+                    {/* ── WelcomeScreen ── */}
                     {WelcomeScreenComp && (
                         <WelcomeScreenComp>
                             <WelcomeScreenComp.Center>
-                                <WelcomeScreenComp.Center.Logo>
-                                    <svg
-                                        width="48"
-                                        height="48"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="#6965db"
-                                        strokeWidth="2.5"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <path d="M12 19l7-7 3 3-7 7-3-3z" />
-                                        <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
-                                        <path d="M2 2l7.586 7.586" />
-                                        <circle cx="11" cy="11" r="2" />
-                                    </svg>
-                                    <span className="ml-2 font-bold">
-                                        Cubis eBoard
-                                    </span>
-                                </WelcomeScreenComp.Center.Logo>
+                                <WelcomeScreenComp.Center.Logo />
                                 <WelcomeScreenComp.Center.Heading>
                                     {title}
                                 </WelcomeScreenComp.Center.Heading>
@@ -708,27 +816,7 @@ export default function WhiteboardEditor({
                                         onSelect={() =>
                                             importFileRef.current?.click()
                                         }
-                                        icon={
-                                            <svg
-                                                width="16"
-                                                height="16"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                            >
-                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                                <polyline points="17 8 12 3 7 8" />
-                                                <line
-                                                    x1="12"
-                                                    y1="3"
-                                                    x2="12"
-                                                    y2="15"
-                                                />
-                                            </svg>
-                                        }
+                                        icon={importIcon}
                                     >
                                         Import file
                                     </WelcomeScreenComp.Center.MenuItem>
@@ -742,270 +830,29 @@ export default function WhiteboardEditor({
                     )}
                 </ExcalidrawComp>
             </div>
-
-            {/* ── Floating overlay ── */}
-            <div className="absolute inset-0 pointer-events-none z-[10]">
-                <div className="absolute top-3 left-2 right-2 sm:left-3 sm:right-3 flex items-start justify-between gap-2">
-                    {/* ── Breadcrumb / Title pill ── */}
-                    <div className="pointer-events-auto flex items-center gap-0.5 rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg px-1 py-1 shadow-sm min-w-0 shrink">
-                        <Link
-                            href="/w"
-                            className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)] shrink-0"
-                        >
-                            <svg
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            >
-                                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                                <polyline points="9 22 9 12 15 12 15 22" />
-                            </svg>
-                            <span className="hidden sm:inline">Home</span>
-                        </Link>
-
-                        <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="var(--muted-foreground)"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="opacity-40 shrink-0 hidden sm:block"
-                        >
-                            <polyline points="9 18 15 12 9 6" />
-                        </svg>
-
-                        {isEditingTitle ? (
-                            <input
-                                ref={titleInputRef}
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                onBlur={handleTitleSave}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleTitleSave();
-                                    if (e.key === 'Escape') {
-                                        setTitle(initialTitle);
-                                        setIsEditingTitle(false);
-                                    }
-                                }}
-                                className="h-7 w-32 sm:w-44 rounded-lg border border-[var(--primary)]/30 bg-transparent px-2 text-xs font-semibold text-[var(--foreground)] outline-none ring-2 ring-[var(--primary)]/20"
-                                autoFocus
-                            />
-                        ) : (
-                            <button
-                                onClick={startEditingTitle}
-                                className="rounded-lg px-2 py-1.5 text-xs font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)] truncate max-w-[100px] sm:max-w-[180px]"
-                            >
-                                {title}
-                            </button>
-                        )}
-
-                        {/* ── Sync status indicator ── */}
-                        <SyncIndicator
-                            status={syncStatus}
-                            isOnline={isOnline}
-                        />
-                    </div>
-
-                    {/* ── Right: avatars + share ── */}
-                    <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-                        <TooltipProvider>
-                            <div className="flex items-center -space-x-2">
-                                {allUsers.slice(0, 3).map((u, i) => (
-                                    <Tooltip key={u.userId}>
-                                        <TooltipTrigger asChild>
-                                            <div
-                                                className="relative rounded-full ring-[2.5px] ring-white transition-transform hover:scale-110 hover:z-10"
-                                                style={{
-                                                    zIndex: allUsers.length - i,
-                                                }}
-                                            >
-                                                <div
-                                                    className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full text-[10px] sm:text-[11px] font-bold text-white"
-                                                    style={{
-                                                        backgroundColor:
-                                                            u.color,
-                                                    }}
-                                                >
-                                                    {u.image ? (
-                                                        <img
-                                                            src={u.image}
-                                                            alt={u.name}
-                                                            className="h-full w-full rounded-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        u.name
-                                                            .charAt(0)
-                                                            .toUpperCase()
-                                                    )}
-                                                </div>
-                                                <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full border-2 border-white bg-emerald-400" />
-                                            </div>
-                                        </TooltipTrigger>
-                                        <TooltipContent
-                                            side="bottom"
-                                            className="rounded-lg bg-[var(--foreground)] px-2.5 py-1 text-[11px] text-[var(--background)]"
-                                        >
-                                            {u.isSelf
-                                                ? `${u.name} (you)`
-                                                : u.name}
-                                        </TooltipContent>
-                                    </Tooltip>
-                                ))}
-                                {allUsers.length > 3 && (
-                                    <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-[var(--muted)] text-[10px] font-bold text-[var(--muted-foreground)] ring-[2.5px] ring-white">
-                                        +{allUsers.length - 3}
-                                    </div>
-                                )}
-                            </div>
-                        </TooltipProvider>
-
-                        <div className="h-5 w-px bg-[var(--border)] hidden sm:block" />
-
-                        {isOwner && (
-                            <ShareDialog
-                                whiteboardId={whiteboardId}
-                                isPublic={isPublic}
-                                onTogglePublic={setIsPublic}
-                                ownerEmail={userEmail}
-                            />
-                        )}
-
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={() =>
-                                            importFileRef.current?.click()
-                                        }
-                                        className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-                                    >
-                                        <svg
-                                            width="14"
-                                            height="14"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                        >
-                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                            <polyline points="17 8 12 3 7 8" />
-                                            <line
-                                                x1="12"
-                                                y1="3"
-                                                x2="12"
-                                                y2="15"
-                                            />
-                                        </svg>
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent
-                                    side="bottom"
-                                    className="rounded-lg bg-[var(--foreground)] px-2.5 py-1 text-[11px] text-[var(--background)]"
-                                >
-                                    Import .excalidraw file
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-
-                        <Link
-                            href="/w"
-                            className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--card)]/90 backdrop-blur-lg text-[var(--muted-foreground)] shadow-sm transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-                        >
-                            <svg
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            >
-                                <rect width="7" height="7" x="3" y="3" rx="1" />
-                                <rect
-                                    width="7"
-                                    height="7"
-                                    x="14"
-                                    y="3"
-                                    rx="1"
-                                />
-                                <rect
-                                    width="7"
-                                    height="7"
-                                    x="14"
-                                    y="14"
-                                    rx="1"
-                                />
-                                <rect
-                                    width="7"
-                                    height="7"
-                                    x="3"
-                                    y="14"
-                                    rx="1"
-                                />
-                            </svg>
-                        </Link>
-                    </div>
-                </div>
-            </div>
         </div>
     );
 }
 
-// ── Sync status pill ──
-function SyncIndicator({
-    status,
-    isOnline,
-}: {
-    status: string;
-    isOnline: boolean;
-}) {
+// ── Sync dot (unused but kept for potential future use) ──
+function SyncDot({ status, isOnline }: { status: string; isOnline: boolean }) {
     const display = !isOnline ? 'offline' : status;
-
-    const config: Record<string, { color: string; bg: string; label: string }> =
-        {
-            synced: {
-                color: 'text-emerald-600',
-                bg: 'bg-emerald-500',
-                label: 'Saved',
-            },
-            saving: {
-                color: 'text-amber-600',
-                bg: 'bg-amber-500',
-                label: 'Saving…',
-            },
-            syncing: {
-                color: 'text-blue-600',
-                bg: 'bg-blue-500',
-                label: 'Syncing…',
-            },
-            offline: {
-                color: 'text-gray-500',
-                bg: 'bg-gray-400',
-                label: 'Offline',
-            },
-        };
-
-    const c = config[display] || config.synced;
-
+    const colors: Record<string, string> = {
+        synced: 'bg-emerald-500',
+        saving: 'bg-amber-400 animate-pulse',
+        syncing: 'bg-blue-500 animate-pulse',
+        offline: 'bg-gray-400',
+    };
+    const titles: Record<string, string> = {
+        synced: 'Saved',
+        saving: 'Saving…',
+        syncing: 'Syncing…',
+        offline: 'Offline',
+    };
     return (
-        <div
-            className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-medium ${c.color}`}
-        >
-            <span
-                className={`h-1.5 w-1.5 rounded-full ${c.bg} ${display === 'syncing' || display === 'saving' ? 'animate-pulse' : ''}`}
-            />
-            {c.label}
-        </div>
+        <span
+            title={titles[display] || 'Saved'}
+            className={`h-2 w-2 rounded-full shrink-0 ${colors[display] || colors.synced}`}
+        />
     );
 }

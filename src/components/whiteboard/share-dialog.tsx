@@ -31,6 +31,8 @@ interface ShareDialogProps {
   isPublic: boolean;
   onTogglePublic: (isPublic: boolean) => void;
   ownerEmail?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 interface AccessRequest {
@@ -41,13 +43,23 @@ interface AccessRequest {
   userImage: string | null;
 }
 
-export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic, ownerEmail }: ShareDialogProps) {
+export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic, ownerEmail, open: openProp, onOpenChange }: ShareDialogProps) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"viewer" | "editor">("viewer");
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [open, setOpen] = useState(false);
+
+  const isControlled = openProp !== undefined;
+  const dialogOpen = isControlled ? openProp : open;
+  const setDialogOpen = isControlled ? (onOpenChange ?? setOpen) : setOpen;
   const socketRef = useRef<Socket | null>(null);
+
+  // When controlled and opened externally, fetch data
+  useEffect(() => {
+    if (isControlled && openProp) { fetchCollaborators(); fetchRequests(); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isControlled, openProp]);
 
   const isSelf = !!ownerEmail && email.trim().toLowerCase() === ownerEmail.toLowerCase();
   const isDuplicate = collaborators.some((c) => c.userEmail.toLowerCase() === email.trim().toLowerCase());
@@ -152,27 +164,29 @@ export default function ShareDialog({ whiteboardId, isPublic, onTogglePublic, ow
 
   return (
     <Dialog
-      open={open}
+      open={dialogOpen}
       onOpenChange={(v) => {
-        setOpen(v);
+        setDialogOpen(v);
         if (v) { fetchCollaborators(); fetchRequests(); }
       }}
     >
-      <DialogTrigger asChild>
-        <button className="relative flex h-8 items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3.5 text-xs font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-[0.98]">
-          {requests.length > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-[var(--card)]">
-              {requests.length}
-            </span>
-          )}
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-            <polyline points="16 6 12 2 8 6" />
-            <line x1="12" y1="2" x2="12" y2="15" />
-          </svg>
-          <span className="hidden sm:inline">Share</span>
-        </button>
-      </DialogTrigger>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <button className="relative flex h-8 items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3.5 text-xs font-semibold text-white shadow-sm transition-all hover:opacity-90 active:scale-[0.98]">
+            {requests.length > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-[var(--card)]">
+                {requests.length}
+              </span>
+            )}
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+              <polyline points="16 6 12 2 8 6" />
+              <line x1="12" y1="2" x2="12" y2="15" />
+            </svg>
+            <span className="hidden sm:inline">Share</span>
+          </button>
+        </DialogTrigger>
+      )}
       <DialogContent className="rounded-2xl border-[var(--border)] bg-[var(--card)] shadow-xl sm:max-w-[420px]">
         <DialogHeader>
           <DialogTitle className="text-base">Share whiteboard</DialogTitle>

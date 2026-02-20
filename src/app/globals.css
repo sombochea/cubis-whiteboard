@@ -190,7 +190,7 @@
 }
 
 .excalidraw .App-menu_top {
-  margin-top: 52px;
+  margin-top: 10px;
 }
 
 /* ─── Excalidraw context menu override ─────────────────────────── */
@@ -274,4 +274,29 @@
 
 .dark .excalidraw .context-menu-item-separator {
   border-top-color: #2e2e3a !important;
+}
+
+/* ── Move Excalidraw toolbar to top center ── */
+.excalidraw .footer-center {
+  position: absolute !important;
+  top: 8px !important;
+  bottom: auto !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: auto !important;
+  margin: 0 !important;
+  justify-content: center !important;
+}
+
+/* Move right sidebar (properties panel) to top-right */
+.excalidraw .layer-ui__sidebar {
+  top: 56px !important;
+  bottom: auto !important;
+}
+
+/* Keep footer-right (zoom controls) at bottom-right */
+.excalidraw .layer-ui__wrapper__footer-right {
+  position: absolute !important;
+  bottom: 12px !important;
+  right: 12px !important;
 }
