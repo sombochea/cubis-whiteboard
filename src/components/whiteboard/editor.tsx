@@ -171,8 +171,9 @@ export default function WhiteboardEditor({
       const api = excalidrawRef.current;
       if (!api) return;
       const d = data as { userId: string; name: string; color: string; x: number; y: number; button?: string; tool?: string };
+      const key = `${d.userId}:${d.color}`;
       const updated = new Map(collaboratorsRef.current);
-      updated.set(d.userId, {
+      updated.set(key, {
         username: d.name,
         pointer: { x: d.x, y: d.y, tool: (d.tool || "pointer") as "pointer" | "laser" },
         button: d.button || "up",
@@ -188,10 +189,13 @@ export default function WhiteboardEditor({
       if (!api) return;
       const updated = new Map<string, { username?: string; color?: { background: string; stroke: string } }>();
       for (const u of users) {
-        if (u.userId === userId) continue;
-        const existing = collaboratorsRef.current.get(u.userId);
-        updated.set(u.userId, existing || { username: u.name, color: { background: u.color, stroke: u.color } });
+        // Use a composite key so same-user multi-tab entries don't collide
+        const key = `${u.userId}:${u.color}`;
+        const existing = collaboratorsRef.current.get(key);
+        updated.set(key, existing || { username: u.name, color: { background: u.color, stroke: u.color } });
       }
+      // Remove self (current tab) — identified by matching userId AND being the only one with no cursor yet
+      // Keep all entries; Excalidraw ignores collaborators with no pointer
       collaboratorsRef.current = updated;
       api.updateScene({ collaborators: updated });
     });
@@ -317,7 +321,7 @@ export default function WhiteboardEditor({
   useEffect(() => { roomUsersRef.current = roomUsers; }, [roomUsers]);
 
   const hasCollaborators = useCallback(() =>
-    roomUsersRef.current.some((u) => u.userId !== userId), [userId]);
+    roomUsersRef.current.length > 1, []);
 
   const processChange = useCallback(() => {
     const c = latestChange.current;
